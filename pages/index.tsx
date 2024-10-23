@@ -1,115 +1,175 @@
-import Image from "next/image";
-import localFont from "next/font/local";
-
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
-});
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
-});
+import { useState } from 'react';
+import { Loader2, Sparkles, Download, Code2, Laptop2 } from 'lucide-react';
 
 export default function Home() {
-  return (
-    <div
-      className={`${geistSans.variable} ${geistMono.variable} grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]`}
-    >
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              pages/index.tsx
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
+  const [prompt, setPrompt] = useState('');
+  const [generatedCode, setGeneratedCode] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [preview, setPreview] = useState('');
+  const [activeTab, setActiveTab] = useState('preview');
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+  const generateWebsite = async () => {
+    try {
+      setLoading(true);
+      const response = await fetch('http://localhost:3001/generate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt }),
+      });
+      
+      const data = await response.json();
+      setGeneratedCode(data.code);
+      setPreview(data.code);
+    } catch (error) {
+      console.error('Error generating website:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const downloadCode = () => {
+    const element = document.createElement('a');
+    const file = new Blob([generatedCode], { type: 'text/html' });
+    element.href = URL.createObjectURL(file);
+    element.download = 'generated-website.html';
+    document.body.appendChild(element);
+    element.click();
+    document.body.removeChild(element);
+  };
+
+  return (
+    <main className="min-h-screen bg-gradient-to-b from-neutral-200 via-neutral-100 to-neutral-200">
+      {/* Animated background elements */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute -inset-[10px] opacity-30">
+          <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#D2B48C] rounded-full mix-blend-multiply filter blur-3xl animate-pulse" />
+          <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-neutral-400 rounded-full mix-blend-multiply filter blur-3xl animate-pulse delay-1000" />
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=default-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+      </div>
+
+      <div className="relative max-w-6xl mx-auto p-8">
+        {/* Header Section with enhanced visibility */}
+        <div className="text-center space-y-6 py-16">
+          <div className="inline-block relative">
+            <div className="absolute inset-0 blur-2xl bg-gradient-to-r from-[#D2B48C] via-neutral-600 to-[#D2B48C] opacity-30" />
+            <h1 className="relative text-8xl font-black tracking-tight text-neutral-800 drop-shadow-2xl">
+              brix<span className="text-[#8B4513]">.ai</span>
+            </h1>
+            <Sparkles className="absolute -top-8 -right-10 w-10 h-10 text-[#8B4513] animate-bounce" />
+          </div>
+          <p className="text-xl text-neutral-600 font-medium tracking-wide max-w-2xl mx-auto">
+            Transform your ideas into production-ready websites with AI-powered precision
+          </p>
+        </div>
+
+        {/* Main Content */}
+        <div className="space-y-8">
+          {/* Input Section */}
+          <div className="backdrop-blur-xl bg-white/60 rounded-2xl border border-neutral-300 shadow-2xl p-8">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <label className="inline-flex items-center space-x-2 text-lg font-medium text-neutral-700">
+                  <Code2 className="w-5 h-5 text-[#8B4513]" />
+                  <span>Describe your perfect website</span>
+                </label>
+                <div className="relative group">
+                  <textarea
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="e.g., Create a modern landing page for a coffee shop with a dark theme, hero section, and menu..."
+                    className="w-full h-28 p-4 bg-white/80 text-neutral-800 placeholder-neutral-500 rounded-xl border border-neutral-300 focus:outline-none focus:ring-2 focus:ring-[#8B4513] focus:border-transparent transition-all resize-none text-lg font-light backdrop-blur-sm"
+                  />
+                  <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-[#D2B48C] to-[#8B4513] opacity-0 group-hover:opacity-5 transition-opacity pointer-events-none" />
+                </div>
+              </div>
+              
+              <button 
+                onClick={generateWebsite}
+                disabled={loading || !prompt}
+                className="w-full relative group overflow-hidden bg-gradient-to-r from-[#8B4513] to-[#D2B48C] text-white py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-[1.02]"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  {loading ? (
+                    <>
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                      Crafting your masterpiece...
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-5 h-5" />
+                      Generate Website
+                    </>
+                  )}
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-[#D2B48C] to-[#8B4513] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              </button>
+            </div>
+          </div>
+
+          {/* Output Section */}
+          {generatedCode && (
+            <div className="space-y-6">
+              <div className="backdrop-blur-xl bg-white/60 rounded-2xl border border-neutral-300 shadow-2xl overflow-hidden">
+                {/* Tab Navigation */}
+                <div className="flex border-b border-neutral-300">
+                  <button
+                    onClick={() => setActiveTab('preview')}
+                    className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${
+                      activeTab === 'preview' 
+                        ? 'text-[#8B4513] border-b-2 border-[#8B4513]' 
+                        : 'text-neutral-600 hover:text-neutral-800'
+                    }`}
+                  >
+                    <Laptop2 className="w-4 h-4" />
+                    Preview
+                  </button>
+                  <button
+                    onClick={() => setActiveTab('code')}
+                    className={`flex items-center gap-2 px-6 py-4 text-sm font-medium transition-colors ${
+                      activeTab === 'code' 
+                        ? 'text-[#8B4513] border-b-2 border-[#8B4513]' 
+                        : 'text-neutral-600 hover:text-neutral-800'
+                    }`}
+                  >
+                    <Code2 className="w-4 h-4" />
+                    Code
+                  </button>
+                </div>
+
+                {/* Content Area */}
+                <div className="p-6">
+                  <div className={`h-[600px] rounded-lg overflow-hidden ${activeTab === 'preview' ? 'bg-white' : 'bg-neutral-100'}`}>
+                    {activeTab === 'preview' ? (
+                      <iframe
+                        srcDoc={preview}
+                        className="w-full h-full border-0"
+                        title="Preview"
+                      />
+                    ) : (
+                      <pre className="p-4 text-neutral-800 font-mono text-sm h-full overflow-auto">
+                        {generatedCode}
+                      </pre>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <button 
+                onClick={downloadCode}
+                className="w-full group relative overflow-hidden bg-white text-neutral-700 border border-[#8B4513] py-4 px-6 rounded-xl font-semibold text-lg transition-all duration-300 hover:text-white"
+              >
+                <span className="relative z-10 flex items-center justify-center gap-2">
+                  <Download className="w-5 h-5" />
+                  Download Source Code
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-[#8B4513] to-[#D2B48C] opacity-0 group-hover:opacity-100 transition-all duration-300" />
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+    </main>
   );
 }
