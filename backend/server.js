@@ -6,13 +6,16 @@ const { GoogleGenerativeAI } = require('@google/generative-ai');
 const app = express();
 const port = 3001;
 
-// Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-app.use(cors());
+const corsOptions = {
+  origin: 'http://localhost:3000',
+  methods: ['POST', 'GET', 'OPTIONS'],
+  allowedHeaders: ['Content-Type'],
+};
+app.use(cors(corsOptions));
 app.use(express.json());
 
-// Color scheme definitions
 const colorSchemes = {
   modern: {
     primary: '#2D3436',
@@ -34,11 +37,9 @@ const colorSchemes = {
     accent: '#D35400',
     background: '#FFF5F5',
     text: '#2C3E50'
-  },
-  // Add more color schemes as needed
+  }
 };
 
-// Website type templates and content structure
 const websiteTemplates = {
   business: {
     sections: ['hero', 'services', 'about', 'testimonials', 'contact'],
@@ -52,7 +53,36 @@ const websiteTemplates = {
     sections: ['featured', 'products', 'categories', 'about', 'contact'],
     contentTypes: ['product descriptions', 'pricing information', 'category descriptions']
   }
-  // Add more templates as needed
+};
+
+// Helper function to ensure JSON response from AI
+const ensureJsonResponse = (text) => {
+  try {
+    // First attempt to parse as is
+    return JSON.parse(text);
+  } catch (e) {
+    // If it fails, try to extract JSON-like content
+    try {
+      // Look for content between triple backticks if present
+      const jsonMatch = text.match(/```json\n?([\s\S]*?)\n?```/);
+      if (jsonMatch) {
+        return JSON.parse(jsonMatch[1].trim());
+      }
+      
+      // If no JSON blocks found, try to convert markdown-style content to JSON
+      const sections = text.split('\n\n').filter(Boolean);
+      return {
+        sections: sections.map(section => {
+          const lines = section.split('\n');
+          const title = lines[0].replace(/^#+\s*/, '').trim();
+          const content = lines.slice(1).join('\n').trim();
+          return { title, content };
+        })
+      };
+    } catch (error) {
+      throw new Error(`Failed to parse AI response into JSON: ${error.message}`);
+    }
+  }
 };
 
 app.post('/generate', async (req, res) => {
@@ -65,75 +95,72 @@ app.post('/generate', async (req, res) => {
       brandTone = 'professional'
     } = req.body;
 
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
 
-    // Generate content first
     const contentPrompt = `
-    Generate website content for a ${websiteType} website with the following details:
-    "${prompt}"
-    
-    Requirements:
-    1. Tone of voice: ${brandTone}
-    2. Include all necessary sections for a ${websiteType} website
-    3. Generate real, contextual content (not lorem ipsum)
-    4. Include SEO-friendly headings and descriptions
-    5. Maintain consistent brand voice throughout
-    6. Generate appropriate calls-to-action
-    7. Include meta descriptions and title tags
+      Generate website content for a ${websiteType} website with the following details:
+      "${prompt}"
+      
+      Requirements:
+      1. Tone of voice: ${brandTone}
+      2. Include all necessary sections for a ${websiteType} website
+      3. Generate real, contextual content (not lorem ipsum)
+      4. Include SEO-friendly headings and descriptions
+      5. Maintain consistent brand voice throughout
+      6. Generate appropriate calls-to-action
+      7. Include meta descriptions and title tags
+
+      IMPORTANT: Return the response in valid JSON format with this structure:
+      {
+        "sections": [
+          {
+            "title": "section name",
+            "content": "section content",
+            "meta": {
+              "description": "SEO description",
+              "keywords": ["keyword1", "keyword2"]
+            }
+          }
+        ],
+        "globalMeta": {
+          "title": "site title",
+          "description": "site description"
+        }
+      }
     `;
 
     const contentResult = await model.generateContent(contentPrompt);
     const contentResponse = await contentResult.response;
-    const generatedContent = JSON.parse(contentResponse.text());
+    const generatedContent = ensureJsonResponse(contentResponse.text());
 
-    // Generate the website with the content
     const websitePrompt = `
-    Generate a complete, modern HTML , CSS and javascript website using this content: ${JSON.stringify(generatedContent)}
-    
-    Technical Requirements:
-    1. Use semantic HTML5 elements (header, nav, main, section, footer)
-    2. Implement responsive design with mobile-first approach
-    3. Include CSS custom properties for the color scheme: ${JSON.stringify(colorSchemes[colorScheme])}
-    4. Use modern CSS features (Flexbox, Grid, clamp(), etc.)
-    5. Optimize for performance (lazy loading, efficient selectors)
-    6. Include accessibility features (ARIA labels, semantic structure)
-    7. Add micro-interactions and smooth transitions
-    8. Implement proper meta tags for SEO
-    9. Use srcset for responsive images
-    10. Include structured data markup where appropriate
-    
-    Design Requirements:
-    1. Follow ${style} design principles
-    2. Use whitespace effectively
-    3. Maintain visual hierarchy
-    4. Ensure readable typography (minimum 16px base font size)
-    5. Use consistent spacing throughout
-    6. Include hover and focus states
-    7. Implement smooth scrolling
-    8. Use subtle animations for better UX
-    
-    Additional Features:
-    1. Add a cookie consent banner
-    2. Include a newsletter signup form
-    3. Add social media integration
-    4. Implement a contact form
-    5. Add Google Analytics placeholder
-    6. Include favicon placeholder
-    
-    Performance Optimizations:
-    1. Minify CSS
-    2. Use system font stack
-    3. Implement critical CSS
-    4. Add appropriate caching headers
+      Generate a complete, modern HTML, CSS, and JavaScript website using this content: ${JSON.stringify(generatedContent)}
+      
+      Technical Requirements:
+      1. Use semantic HTML5 elements (header, nav, main, section, footer)
+      2. Implement responsive design with mobile-first approach
+      3. Include CSS custom properties for the color scheme: ${JSON.stringify(colorSchemes[colorScheme])}
+      4. Use modern CSS features (Flexbox, Grid, clamp(), etc.)
+      5. Optimize for performance (lazy loading, efficient selectors)
+      6. Include accessibility features (ARIA labels, semantic structure)
+      7. Add micro-interactions and smooth transitions
+      8. Implement proper meta tags for SEO
+      9. Use srcset for responsive images
+      10. Include structured data markup where appropriate
+
+      IMPORTANT: Return only the complete HTML code without any markdown formatting or code blocks.
     `;
 
     const result = await model.generateContent(websitePrompt);
     const response = await result.response;
-    const generatedCode = response.text();
+    const generatedCode = response.text().replace(/```html\n?|\n?```/g, '').trim();
 
-    // Post-process the generated code
     const processedCode = generatedCode
-      .replace(/placehold\.co/g, 'picsum.photos') // Better placeholder images
+      .replace(/placehold\.co/g, 'picsum.photos')
       .replace(/<head>/, `<head>\n  <!-- Generated by Brix.AI -->`);
 
     res.json({ 
@@ -156,17 +183,14 @@ app.post('/generate', async (req, res) => {
   }
 });
 
-// Get available color schemes
 app.get('/color-schemes', (req, res) => {
   res.json(colorSchemes);
 });
 
-// Get available website templates
 app.get('/templates', (req, res) => {
   res.json(websiteTemplates);
 });
 
-// Test endpoint
 app.get('/test', (req, res) => {
   res.json({ 
     message: 'Brix.AI Backend is running!',
