@@ -218,6 +218,7 @@ Technical Requirements:
 2. Implement responsive design using Tailwind's responsive prefixes
 3. Use the following color scheme classes: ${JSON.stringify(colorSchemes[colorScheme])}
 4. Include these features:
+    
    - Responsive navigation with hamburger menu
    - Hero section with gradient background
    - Feature grid with hover effects
@@ -225,6 +226,7 @@ Technical Requirements:
    - Contact section with form validation
    - Footer with social links
 5. Add these interactive elements:
+   - Use a minimal color scheme
    - Smooth scroll behavior
    - Hover animations using Tailwind's transition classes
    - Mobile menu toggle
@@ -235,10 +237,11 @@ Technical Requirements:
    - Focus states
    - Skip to main content
 7. Use Tailwind's built-in animations and transitions
+
 8. Implement proper spacing using Tailwind's spacing utilities
 9. Use Tailwind's container and max-width utilities
 10. Include proper meta tags and structured data
-
+11. Take Online image path
 Return only the complete HTML code with embedded Tailwind CSS classes and necessary JavaScript.
 Do not include any markdown formatting or code blocks.`;
 
