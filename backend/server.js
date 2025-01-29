@@ -326,7 +326,7 @@ Do not include any markdown formatting or code blocks.`;
 });
 
 app.get('/color-schemes', (req, res) => {
-  res.json(colorSchemes);
+  res.json(colorSchemes);ßß
 });
 
 app.get('/templates', (req, res) => {
@@ -350,6 +350,35 @@ app.get('/test', (req, res) => {
       'Interactive components'
     ]
   });
+});
+app.post('/chat', async (req, res) => {
+  try {
+    const { message } = req.body;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    
+    const prompt = `You are an AI assistant for Brix.AI, a website generator. 
+    Help the user with their website-related questions and suggestions.
+    Current message: "${message}"`;
+
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    
+    res.json({ 
+      message: response.text(),
+      timestamp: new Date().toISOString()
+    });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ 
+      error: 'Failed to process message', 
+      details: error.message 
+    });
+  }
 });
 
 app.listen(port, () => {
