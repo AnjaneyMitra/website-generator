@@ -1,6 +1,8 @@
-import ChatBot from '/Users/anjaney/Vscode/WEB_GEN/website-generator/src/components/ChatBot.jsx';
 import { useState } from 'react';
 import { Loader2, Sparkles, Download, Code2, Laptop2 } from 'lucide-react';
+import Chatbot from './Chatbot';
+
+
 
 export default function Home() {
   const [prompt, setPrompt] = useState('');
@@ -171,7 +173,9 @@ export default function Home() {
           )}
         </div>
       </div>
-      <ChatBot />
+      
+    
+      <Chatbot />
     </main>
   );
 }

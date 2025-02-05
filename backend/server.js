@@ -17,58 +17,94 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Tailwind-specific color schemes
-const colorSchemes = {
-  modern: {
-    primary: 'text-blue-600 bg-blue-600',
+const themeKeywords = {
+  elegant: {
+    primary: 'text-gray-800 bg-gray-800',
     secondary: 'text-gray-600 bg-gray-600',
-    accent: 'text-indigo-600 bg-indigo-600',
+    accent: 'text-gold-500 bg-gold-500',
     background: 'bg-white',
-    text: 'text-gray-800',
-    gradient: 'bg-gradient-to-r from-blue-600 to-indigo-600',
-    surface: 'bg-gray-50',
-    muted: 'text-gray-500'
-  },
-  minimal: {
-    primary: 'text-black bg-black',
-    secondary: 'text-gray-800 bg-gray-800',
-    accent: 'text-gray-600 bg-gray-600',
-    background: 'bg-white',
-    text: 'text-black',
-    gradient: 'bg-gradient-to-r from-gray-800 to-gray-600',
+    text: 'text-gray-900',
+    gradient: 'bg-gradient-to-r from-gray-800 to-gold-500',
     surface: 'bg-gray-50',
     muted: 'text-gray-400'
   },
-  warm: {
-    primary: 'text-red-600 bg-red-600',
-    secondary: 'text-red-500 bg-red-500',
-    accent: 'text-orange-600 bg-orange-600',
-    background: 'bg-red-50',
-    text: 'text-gray-900',
-    gradient: 'bg-gradient-to-r from-red-500 to-orange-500',
-    surface: 'bg-red-100',
-    muted: 'text-gray-500'
+  coffee: {
+    primary: 'text-amber-800 bg-amber-800',
+    secondary: 'text-amber-600 bg-amber-600',
+    accent: 'text-amber-500 bg-amber-500',
+    background: 'bg-amber-50',
+    text: 'text-amber-900',
+    gradient: 'bg-gradient-to-r from-amber-800 to-amber-600',
+    surface: 'bg-amber-100',
+    muted: 'text-amber-400'
   },
-  neon: {
-    primary: 'text-pink-600 bg-pink-600',
-    secondary: 'text-gray-900 bg-gray-900',
-    accent: 'text-cyan-400 bg-cyan-400',
+  dark: {
+    primary: 'text-gray-900 bg-gray-900',
+    secondary: 'text-gray-800 bg-gray-800',
+    accent: 'text-indigo-500 bg-indigo-500',
     background: 'bg-gray-900',
     text: 'text-gray-100',
-    gradient: 'bg-gradient-to-r from-pink-600 to-cyan-400',
+    gradient: 'bg-gradient-to-r from-gray-900 to-indigo-900',
     surface: 'bg-gray-800',
     muted: 'text-gray-400'
   },
   nature: {
-    primary: 'text-green-500 bg-green-500',
+    primary: 'text-green-700 bg-green-700',
     secondary: 'text-green-600 bg-green-600',
     accent: 'text-yellow-500 bg-yellow-500',
     background: 'bg-green-50',
-    text: 'text-gray-900',
-    gradient: 'bg-gradient-to-r from-green-500 to-green-600',
+    text: 'text-gray-800',
+    gradient: 'bg-gradient-to-r from-green-700 to-green-600',
     surface: 'bg-green-100',
-    muted: 'text-gray-500'
+    muted: 'text-green-500'
+  },
+  tech: {
+    primary: 'text-purple-600 bg-purple-600',
+    secondary: 'text-purple-500 bg-purple-500',
+    accent: 'text-cyan-400 bg-cyan-400',
+    background: 'bg-gray-100',
+    text: 'text-gray-900',
+    gradient: 'bg-gradient-to-r from-purple-600 to-cyan-400',
+    surface: 'bg-white',
+    muted: 'text-gray-400'
   }
 };
+
+function analyzePromptForTheme(prompt) {
+  const promptLower = prompt.toLowerCase();
+  
+  // Check for explicit color mentions
+  if (promptLower.includes('dark theme') || promptLower.includes('dark mode')) {
+    return 'dark';
+  }
+  
+  // Check for business/website type contexts
+  if (promptLower.includes('coffee') || promptLower.includes('cafe') || promptLower.includes('restaurant')) {
+    return 'coffee';
+  }
+  
+  if (promptLower.includes('tech') || promptLower.includes('software') || promptLower.includes('digital')) {
+    return 'tech';
+  }
+  
+  if (promptLower.includes('nature') || promptLower.includes('eco') || promptLower.includes('organic')) {
+    return 'nature';
+  }
+  
+  if (promptLower.includes('luxury') || promptLower.includes('elegant') || promptLower.includes('professional')) {
+    return 'elegant';
+  }
+  
+  // Default to elegant theme if no specific context is found
+  return 'elegant';
+}
+
+function getThemeColors(prompt) {
+  const theme = analyzePromptForTheme(prompt);
+  return themeKeywords[theme];
+}
+
+module.exports = { getThemeColors, themeKeywords };
 
 // Website templates with Tailwind-specific classes
 const websiteTemplates = {
@@ -150,15 +186,18 @@ app.post('/generate', async (req, res) => {
     }
 
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const detectedTheme = analyzePromptForTheme(prompt);
+    const colors = getThemeColors(prompt);
+
 
     const contentPrompt = `
 Generate website content for a ${websiteType} website with the following details:
 "${prompt}"
 
 Requirements:
-1. Use a visually engaging style with modern designs and icons
+1. Use a visually engaging style with ${detectedTheme}-themed designs and icons
 2. Tone of voice: ${brandTone}
-3. Use the ${colorScheme} color scheme prominently
+3. Use the ${detectedTheme} theme colors throughout the design
 4. Include all necessary sections for a ${websiteType} website
 5. Generate real, contextual content (not lorem ipsum)
 6. Focus on clear call-to-actions and user engagement
@@ -216,7 +255,7 @@ Generate a complete, modern website using Tailwind CSS for this content: ${JSON.
 Technical Requirements:
 1. Use semantic HTML5 elements
 2. Implement responsive design using Tailwind's responsive prefixes
-3. Use the following color scheme classes: ${JSON.stringify(colorSchemes[colorScheme])}
+3. Use a color scheme that is modern and matches with the request 
 4. Include these features:
     
    - Responsive navigation with hamburger menu
@@ -241,7 +280,7 @@ Technical Requirements:
 8. Implement proper spacing using Tailwind's spacing utilities
 9. Use Tailwind's container and max-width utilities
 10. Include proper meta tags and structured data
-11. Take Online image path
+11. For images display a placeholder saying "Put Image here"
 Return only the complete HTML code with embedded Tailwind CSS classes and necessary JavaScript.
 Do not include any markdown formatting or code blocks.`;
 
@@ -262,7 +301,7 @@ Do not include any markdown formatting or code blocks.`;
             tailwind.config = {
               theme: {
                 extend: {
-                  colors: ${JSON.stringify(colorSchemes[colorScheme])}
+                  colors: ${JSON.stringify(colors)}
                 }
               }
             }
@@ -361,9 +400,9 @@ app.post('/chat', async (req, res) => {
 
     const model = genAI.getGenerativeModel({ model: "gemini-pro" });
     
-    const prompt = `You are an AI assistant for Brix.AI, a website generator. 
-    Help the user with their website-related questions and suggestions.
-    Current message: "${message}"`;
+   const prompt = `You are Brix.AI, a friendly website generator assistant. 
+Provide a clear, and helpful response to: "${message}"
+Keep responses focused and direct`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
