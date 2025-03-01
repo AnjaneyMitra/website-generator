@@ -42,7 +42,7 @@ export default function Chatbot() {
       // Add single bot response
       setChatHistory(prev => [...prev, { 
         sender: 'bot', 
-        text: data.message.split('\n')[0] // Take only the first complete response
+        text: data.message
       }]);
     } catch (error) {
       setChatHistory(prev => [...prev, { 

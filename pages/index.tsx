@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Loader2, Sparkles, Download, Code2, Laptop2 } from 'lucide-react';
+import Link from 'next/link';
 import Chatbot from './Chatbot';
 
 
@@ -52,20 +53,25 @@ export default function Home() {
         </div>
       </div>
 
+     
       <div className="relative max-w-6xl mx-auto p-8">
-        {/* Header Section with enhanced visibility */}
+        {/* Header with Next.js Link */}
         <div className="text-center space-y-6 py-16">
           <div className="inline-block relative">
             <div className="absolute inset-0 blur-2xl bg-gradient-to-r from-[#D2B48C] via-neutral-600 to-[#D2B48C] opacity-30" />
-            <h1 className="relative text-8xl font-black tracking-tight text-neutral-800 drop-shadow-2xl">
-              brix<span className="text-[#8B4513]">.ai</span>
-            </h1>
-            <Sparkles className="absolute -top-8 -right-10 w-10 h-10 text-[#8B4513] animate-bounce" />
+            <Link href="/about" className="inline-block cursor-pointer">
+    {/* Remove the <a> wrapper and place content directly in Link */}
+    <h1 className="relative text-8xl font-black tracking-tight text-neutral-800 drop-shadow-2xl transition-transform hover:scale-105">
+      brix<span className="text-[#8B4513]">.ai</span>
+    </h1>
+    <Sparkles className="absolute -top-8 -right-10 w-10 h-10 text-[#8B4513] animate-bounce" />
+  </Link>
           </div>
           <p className="text-xl text-neutral-600 font-medium tracking-wide max-w-2xl mx-auto">
             Transform your ideas into production-ready websites with AI-powered precision
           </p>
         </div>
+
 
         {/* Main Content */}
         <div className="space-y-8">

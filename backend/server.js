@@ -185,13 +185,12 @@ app.post('/generate', async (req, res) => {
       return res.status(400).json({ error: 'Prompt is required' });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const detectedTheme = analyzePromptForTheme(prompt);
     const colors = getThemeColors(prompt);
 
-
     const contentPrompt = `
-Generate website content for a ${websiteType} website with the following details:
+Generate a modern, dynamic website for a ${websiteType} using Tailwind CSS with the following details:
 "${prompt}"
 
 Requirements:
@@ -206,6 +205,19 @@ Requirements:
 9. Suggest image descriptions and placements
 10. Only create forms if explicitly requested
 11. Specify interactive elements and animations
+12. Ensure the design is modern with smooth animations and transitions
+13. Implement dynamic animations using JavaScript for:
+    - Scroll-triggered animations
+    - Hover effects with transitions
+    - Interactive elements like carousels and modals
+14. Use modern layout patterns:
+    - Grid-based masonry layouts
+    - Asymmetric hero sections
+    - Floating elements with parallax
+15. Ensure performance optimizations:
+    - Lazy loading components
+    - Optimized images with blur placeholder
+    - Code splitting suggestions
 
 Return the response in valid JSON format with this structure:
 {
@@ -257,7 +269,6 @@ Technical Requirements:
 2. Implement responsive design using Tailwind's responsive prefixes
 3. Use a color scheme that is modern and matches with the request 
 4. Include these features:
-    
    - Responsive navigation with hamburger menu
    - Hero section with gradient background
    - Feature grid with hover effects
@@ -276,17 +287,17 @@ Technical Requirements:
    - Focus states
    - Skip to main content
 7. Use Tailwind's built-in animations and transitions
-
 8. Implement proper spacing using Tailwind's spacing utilities
 9. Use Tailwind's container and max-width utilities
 10. Include proper meta tags and structured data
 11. For images display a placeholder saying "Put Image here"
+12. Ensure JavaScript-based animations are included for dynamic interactions
 Return only the complete HTML code with embedded Tailwind CSS classes and necessary JavaScript.
 Do not include any markdown formatting or code blocks.`;
 
-    const result = await model.generateContent(websitePrompt);
-    const response = await result.response;
-    const generatedCode = response.text().replace(/```html\n?|\n?```/g, '').trim();
+    const websiteResult = await model.generateContent(websitePrompt);
+    const websiteResponse = await websiteResult.response;
+    const generatedCode = websiteResponse.text().replace(/```html\n?|\n?```/g, '').trim();
 
     const processedCode = generatedCode
       .replace(/placehold\.co/g, 'picsum.photos')
@@ -296,12 +307,38 @@ Do not include any markdown formatting or code blocks.`;
           <meta charset="UTF-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
           <script src="https://cdn.tailwindcss.com"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
           <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
           <script>
             tailwind.config = {
               theme: {
                 extend: {
-                  colors: ${JSON.stringify(colors)}
+                  colors: ${JSON.stringify(colors)},
+                  animation: {
+                    'float': 'float 3s ease-in-out infinite',
+                    'slide-up': 'slideUp 0.5s ease-out',
+                    'fade-in': 'fadeIn 0.5s ease-out',
+                    'scale-in': 'scaleIn 0.5s ease-out',
+                  },
+                  keyframes: {
+                    float: {
+                      '0%, 100%': { transform: 'translateY(0)' },
+                      '50%': { transform: 'translateY(-20px)' },
+                    },
+                    slideUp: {
+                      '0%': { transform: 'translateY(100px)', opacity: '0' },
+                      '100%': { transform: 'translateY(0)', opacity: '1' },
+                    },
+                    fadeIn: {
+                      '0%': { opacity: '0' },
+                      '100%': { opacity: '1' },
+                    },
+                    scaleIn: {
+                      '0%': { transform: 'scale(0.9)', opacity: '0' },
+                      '100%': { transform: 'scale(1)', opacity: '1' },
+                    },
+                  },
                 }
               }
             }
@@ -309,7 +346,63 @@ Do not include any markdown formatting or code blocks.`;
       `)
       .replace('</body>', `
           <script>
-            // Initialize smooth scroll
+            // Initialize GSAP
+            gsap.registerPlugin(ScrollTrigger);
+
+            // Animate elements on page load
+            window.addEventListener('load', () => {
+              // Hero section animation
+              gsap.from('[data-animate="hero"]', {
+                duration: 1,
+                y: 100,
+                opacity: 0,
+                ease: "power4.out"
+              });
+
+              // Animate sections on scroll
+              gsap.utils.toArray('[data-animate="section"]').forEach((section, i) => {
+                gsap.from(section, {
+                  scrollTrigger: {
+                    trigger: section,
+                    start: "top 80%",
+                    toggleActions: "play none none reverse"
+                  },
+                  y: 60,
+                  opacity: 0,
+                  duration: 1,
+                  ease: "power2.out"
+                });
+              });
+
+              // Animate cards with stagger
+              gsap.utils.toArray('[data-animate="card"]').forEach((cards) => {
+                gsap.from(cards, {
+                  scrollTrigger: {
+                    trigger: cards,
+                    start: "top 85%"
+                  },
+                  y: 40,
+                  opacity: 0,
+                  duration: 0.6,
+                  stagger: 0.2,
+                  ease: "power2.out"
+                });
+              });
+
+              // Parallax effect for background elements
+              gsap.utils.toArray('[data-parallax]').forEach((element) => {
+                gsap.to(element, {
+                  scrollTrigger: {
+                    trigger: element,
+                    scrub: true
+                  },
+                  y: (i, target) => -100 * target.dataset.speed,
+                  ease: "none"
+                });
+              });
+            });
+
+            // Smooth scroll
             document.querySelectorAll('a[href^="#"]').forEach(anchor => {
               anchor.addEventListener('click', function (e) {
                 e.preventDefault();
@@ -319,25 +412,54 @@ Do not include any markdown formatting or code blocks.`;
               });
             });
 
-            // Mobile menu toggle
+            // Mobile menu with animation
             const mobileMenu = document.querySelector('[data-mobile-menu]');
             const mobileMenuButton = document.querySelector('[data-mobile-menu-button]');
             if (mobileMenuButton) {
               mobileMenuButton.addEventListener('click', () => {
                 mobileMenu.classList.toggle('hidden');
+                gsap.from('[data-mobile-menu] > *', {
+                  y: -20,
+                  opacity: 0,
+                  duration: 0.3,
+                  stagger: 0.1,
+                  ease: "power2.out"
+                });
               });
             }
 
-            // Intersection Observer for animations
-            const observer = new IntersectionObserver((entries) => {
-              entries.forEach(entry => {
-                if (entry.isIntersecting) {
-                  entry.target.classList.add('motion-safe:animate-fadeIn');
+            // Add hover animations for interactive elements
+            const addHoverAnimation = (elements, scale = 1.05) => {
+              elements.forEach(el => {
+                el.addEventListener('mouseenter', () => {
+                  gsap.to(el, { scale: scale, duration: 0.3, ease: "power2.out" });
+                });
+                el.addEventListener('mouseleave', () => {
+                  gsap.to(el, { scale: 1, duration: 0.3, ease: "power2.out" });
+                });
+              });
+            };
+
+            // Apply hover animations to buttons and cards
+            addHoverAnimation(document.querySelectorAll('[data-hover="button"]'), 1.05);
+            addHoverAnimation(document.querySelectorAll('[data-hover="card"]'), 1.03);
+
+            // Initialize counters if they exist
+            const animateCounter = (element) => {
+              const target = parseInt(element.dataset.target);
+              gsap.to(element, {
+                textContent: target,
+                duration: 2,
+                ease: "power2.out",
+                snap: { textContent: 1 },
+                scrollTrigger: {
+                  trigger: element,
+                  start: "top 80%"
                 }
               });
-            }, { threshold: 0.1 });
+            };
 
-            document.querySelectorAll('[data-animate]').forEach((el) => observer.observe(el));
+            document.querySelectorAll('[data-counter]').forEach(animateCounter);
           </script>
         </body>
       `);
@@ -365,7 +487,7 @@ Do not include any markdown formatting or code blocks.`;
 });
 
 app.get('/color-schemes', (req, res) => {
-  res.json(colorSchemes);ßß
+  res.json(themeKeywords);
 });
 
 app.get('/templates', (req, res) => {
@@ -398,9 +520,9 @@ app.post('/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    const model = genAI.getGenerativeModel({ model: "gemini-pro" });
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     
-   const prompt = `You are Brix.AI, a friendly website generator assistant. 
+    const prompt = `You are Brix.AI, a friendly website generator assistant. 
 Provide a clear, and helpful response to: "${message}"
 Keep responses focused and direct`;
 
@@ -423,3 +545,6 @@ Keep responses focused and direct`;
 app.listen(port, () => {
   console.log(`Brix.AI Server running at http://localhost:${port}`);
 });
+
+// Export functions for testing or external use if needed
+module.exports = { getThemeColors, themeKeywords };
