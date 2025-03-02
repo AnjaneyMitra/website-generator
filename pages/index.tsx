@@ -59,8 +59,7 @@ export default function Home() {
         <div className="text-center space-y-6 py-16">
           <div className="inline-block relative">
             <div className="absolute inset-0 blur-2xl bg-gradient-to-r from-[#D2B48C] via-neutral-600 to-[#D2B48C] opacity-30" />
-            <Link href="/about" className="inline-block cursor-pointer">
-    {/* Remove the <a> wrapper and place content directly in Link */}
+            <Link href="/AboutUs" className="inline-block cursor-pointer">
     <h1 className="relative text-8xl font-black tracking-tight text-neutral-800 drop-shadow-2xl transition-transform hover:scale-105">
       brix<span className="text-[#8B4513]">.ai</span>
     </h1>
