@@ -93,22 +93,49 @@ export default function Home() {
 
   // Function to apply all saved edits to the code
   const applyAllEdits = () => {
+    if (Object.keys(editedElements.current).length === 0) {
+      // No edits to apply
+      setUnsavedChanges(false);
+      return;
+    }
+  
     let updatedCode = generatedCode;
     
-    // Apply text edits
+    // Apply text edits with a more reliable approach
     Object.entries(editedElements.current).forEach(([originalText, newText]) => {
-      // Use a more targeted replacement to avoid issues with similar text
-      const escapedText = escapeRegExp(originalText);
-      const regex = new RegExp(`(>\\s*)(${escapedText})(\\s*<)`, 'g');
-      
-      updatedCode = updatedCode.replace(regex, (match, before, target, after) => {
-        return `${before}${newText}${after}`;
-      });
+      try {
+        // First try with HTML content surrounding approach
+        const escapedText = escapeRegExp(originalText);
+        // Look for text between tags
+        const regex = new RegExp(`(>\\s*)(${escapedText})(\\s*<)`, 'g');
+        
+        // Count matches to ensure we're making the right replacements
+        const matches = updatedCode.match(regex);
+        
+        if (matches && matches.length > 0) {
+          updatedCode = updatedCode.replace(regex, (match, before, target, after) => {
+            return `${before}${newText}${after}`;
+          });
+        } else {
+          // Fallback for cases where the text might be in attributes or other locations
+          updatedCode = updatedCode.replace(
+            new RegExp(escapedText, 'g'), 
+            newText
+          );
+        }
+      } catch (err) {
+        console.error("Error applying edit:", err);
+      }
     });
     
+    // Update both code and preview with the same content
     setGeneratedCode(updatedCode);
     setPreview(updatedCode);
     setUnsavedChanges(false);
+    
+    // Clear edited elements after successfully applying them
+    console.log("Applied edits successfully");
+    console.log("Applied edits:", Object.keys(editedElements.current).length);
   };
 
   // Helper function to escape special regex characters
@@ -130,6 +157,7 @@ export default function Home() {
       const iframe = iframeRef.current;
       if (iframe && iframe.contentDocument) {
         const disableEditScript = `
+          document.body.classList.remove('editing-mode');
           document.body.querySelectorAll('[contenteditable="true"]').forEach(element => {
             element.removeAttribute('contenteditable');
             element.style.outline = 'none';
@@ -151,15 +179,22 @@ export default function Home() {
           // Prevent normal link navigation inside the iframe
           document.body.querySelectorAll('a').forEach(link => {
             link.addEventListener('click', function(e) {
-              if (this.hasAttribute('contenteditable')) {
+              if (this.hasAttribute('contenteditable') || document.body.classList.contains('editing-mode')) {
                 e.preventDefault();
+                e.stopPropagation();
               }
             });
           });
           
+          // Add a class to the body to indicate edit mode
+          document.body.classList.add('editing-mode');
+          
           // Make elements editable
           document.body.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span, a, button, li, div').forEach(element => {
-            // Check if the element contains only text (no nested elements) or is a specific tag
+            // Skip elements that shouldn't be editable
+            if (element.closest('[data-no-edit]')) return;
+            
+            // Check if the element contains mostly text
             if ((element.childElementCount === 0) || element.tagName === 'BUTTON' || element.tagName === 'A') {
               // Store original text
               const originalText = element.innerText || element.textContent;
@@ -176,14 +211,19 @@ export default function Home() {
               
               element.addEventListener('blur', function() {
                 this.style.outline = '1px dashed #2563eb';
-                if (this.innerText !== this.getAttribute('data-original-text')) {
-                  // Send message to parent window with the updated text
-                  window.parent.postMessage({
-                    type: 'text-edited',
-                    originalText: this.getAttribute('data-original-text'),
-                    newText: this.innerText,
-                    nodeType: this.tagName.toLowerCase()
-                  }, '*');
+                const newText = this.innerText || this.textContent;
+                if (newText !== this.getAttribute('data-original-text')) {
+                  try {
+                    // Send message to parent window with the updated text
+                    window.parent.postMessage({
+                      type: 'text-edited',
+                      originalText: this.getAttribute('data-original-text'),
+                      newText: newText,
+                      nodeType: this.tagName.toLowerCase()
+                    }, '*');
+                  } catch (err) {
+                    console.error("Error sending edit message:", err);
+                  }
                 }
               });
             }
@@ -225,6 +265,13 @@ export default function Home() {
       window.removeEventListener('message', handleMessage);
     };
   }, []);
+
+  // Add this to help debug issues
+  useEffect(() => {
+    if (unsavedChanges) {
+      console.log("Unsaved changes:", editedElements.current);
+    }
+  }, [unsavedChanges]);
 
   return (
     <main className="min-h-screen bg-gradient-to-b from-neutral-200 via-neutral-100 to-neutral-200">
@@ -358,8 +405,32 @@ export default function Home() {
                       {editMode && (
                         <button
                           onClick={() => {
-                            applyAllEdits();
-                            setEditMode(false); // Turn off edit mode after saving
+                            try {
+                              applyAllEdits();
+                              // Delay turning off edit mode until after edits are applied
+                              setTimeout(() => {
+                                // Turn off edit mode after saving
+                                const iframe = iframeRef.current;
+                                if (iframe && iframe.contentDocument) {
+                                  const disableEditScript = `
+                                    document.body.classList.remove('editing-mode');
+                                    document.body.querySelectorAll('[contenteditable="true"]').forEach(element => {
+                                      element.removeAttribute('contenteditable');
+                                      element.style.outline = 'none';
+                                      element.style.padding = '';
+                                      element.removeAttribute('data-original-text');
+                                    });
+                                    console.log('Edit mode disabled');
+                                  `;
+                                  
+                                  executeInIframe(iframe, disableEditScript);
+                                }
+                                setEditMode(false);
+                              }, 100);
+                            } catch (err) {
+                              console.error("Error saving edits:", err);
+                              alert("There was a problem saving your edits. Please try again.");
+                            }
                           }}
                           className="flex items-center gap-2 px-6 py-4 text-sm font-medium text-blue-600 hover:text-blue-800 transition-colors border-b-2 border-blue-600"
                         >

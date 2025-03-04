@@ -189,35 +189,35 @@ app.post('/generate', async (req, res) => {
     const detectedTheme = analyzePromptForTheme(prompt);
     const colors = getThemeColors(prompt);
 
+    // Updated content prompt with explicit instruction on color scheme
     const contentPrompt = `
 Generate a modern, dynamic website for a ${websiteType} using Tailwind CSS with the following details:
 "${prompt}"
 
 Requirements:
-1. Use a visually engaging style with ${detectedTheme}-themed designs and icons
-2. Tone of voice: ${brandTone}
-3. Use the ${detectedTheme} theme colors throughout the design
-4. Include all necessary sections for a ${websiteType} website
-5. Generate real, contextual content (not lorem ipsum)
-6. Focus on clear call-to-actions and user engagement
-7. Consider responsive design and mobile-first approach
-8. Include meta descriptions and title tags
-9. Suggest image descriptions and placements
-10. Only create forms if explicitly requested
-11. Specify interactive elements and animations
-12. Ensure the design is modern with smooth animations and transitions
-13. Implement dynamic animations using JavaScript for:
-    - Scroll-triggered animations
-    - Hover effects with transitions
-    - Interactive elements like carousels and modals
+1. Use a visually engaging style with ${detectedTheme}-themed designs and icons.
+2. Tone of voice: ${brandTone}.
+3. Use the ${detectedTheme} theme colors throughout the design. Ensure that the color scheme (including background, text, and accent colors) directly reflects a ${detectedTheme} style.
+4. Include all necessary sections for a ${websiteType} website.
+5. Generate real, contextual content (not lorem ipsum).
+6. Focus on clear call-to-actions and user engagement.
+7. Consider responsive design and a mobile-first approach.
+8. Include meta descriptions and title tags.
+9. Suggest image descriptions and placements.
+10. Only create forms if explicitly requested.
+11. Specify interactive elements and animations.
+12. Ensure the design is modern with smooth animations and transitions.
+13. Implement dynamic animations using JavaScript and make sure they work for:
+    - Scroll-triggered animations.
+    - Hover effects with transitions.
+    - Interactive elements like carousels and modals.
 14. Use modern layout patterns:
-    - Grid-based masonry layouts
-    - Asymmetric hero sections
-    - Floating elements with parallax
-15. Ensure performance optimizations:
-    - Lazy loading components
-    - Optimized images with blur placeholder
-    - Code splitting suggestions
+    - Grid-based masonry layouts.
+    - Asymmetric hero sections.
+    - Floating elements with parallax.
+15. Ensure that any links are implemented as internal anchor links that redirect smoothly to the respective sections on the same page.
+16. For the hero section, if possible, generate typing effects to display the main headline dynamically and provide the javascript for it.
+17. Ensure performance optimizations such as lazy loading, optimized images with blur placeholders, and code splitting suggestions.
 
 Return the response in valid JSON format with this structure:
 {
@@ -238,7 +238,8 @@ Return the response in valid JSON format with this structure:
         "animations": {
           "entry": "fade|slide|zoom",
           "scroll": "reveal|parallel",
-          "hover": "scale|glow"
+          "hover": "scale|glow",
+          "typing": "enabled" // if applicable in the hero section
         },
         "interactions": {
           "buttons": "hover:scale|hover:glow",
@@ -257,41 +258,43 @@ Return the response in valid JSON format with this structure:
   }
 }`;
 
+
     const contentResult = await model.generateContent(contentPrompt);
     const contentResponse = await contentResult.response;
     const generatedContent = ensureJsonResponse(contentResponse.text());
 
-    const websitePrompt = `
+const websitePrompt = `
 Generate a complete, modern website using Tailwind CSS for this content: ${JSON.stringify(generatedContent)}
 
 Technical Requirements:
-1. Use semantic HTML5 elements
-2. Implement responsive design using Tailwind's responsive prefixes
-3. Use a color scheme that is modern and matches with the request 
+1. Use semantic HTML5 elements.
+2. Implement responsive design using Tailwind's responsive prefixes.
+3. Use a color scheme that is modern and matches the ${detectedTheme} theme as specified in the content prompt.
 4. Include these features:
-   - Responsive navigation with hamburger menu
-   - Hero section with gradient background
-   - Feature grid with hover effects
-   - Testimonial carousel
-   - Contact section with form validation
-   - Footer with social links
+   - Responsive navigation with a hamburger menu.
+   - Header links  must be implemented as internal anchor links that redirect smoothly to their respective sections.
+   - Hero section with gradient background and, if possible, a typing effect for the main headline.
+   - Feature grid with hover effects.
+   - Testimonial carousel.
+   - Contact section with form validation.
+   - Footer with social links.
 5. Add these interactive elements:
-   - Use a minimal color scheme
-   - Smooth scroll behavior
-   - Hover animations using Tailwind's transition classes
-   - Mobile menu toggle
-   - Form validation
-   - Intersection Observer for scroll animations
+   - Color scheme matching the theme.
+   - Smooth scroll behavior.
+   - Hover animations using Tailwind's transition classes.
+   - Mobile menu toggle.
+   - Form validation.
+   - Intersection Observer for scroll animations.
 6. Include accessibility features:
-   - ARIA labels
-   - Focus states
-   - Skip to main content
-7. Use Tailwind's built-in animations and transitions
-8. Implement proper spacing using Tailwind's spacing utilities
-9. Use Tailwind's container and max-width utilities
-10. Include proper meta tags and structured data
-11. For images display a placeholder saying "Put Image here"
-12. Ensure JavaScript-based animations are included for dynamic interactions
+   - ARIA labels.
+   - Focus states.
+   
+7. Use Tailwind's built-in animations and transitions.
+8. Implement proper spacing using Tailwind's spacing utilities.
+9. Use Tailwind's container and max-width utilities.
+10. Include proper meta tags and structured data.
+11. For images display a placeholder saying "Put Image here".
+12. Ensure JavaScript-based animations are included for dynamic interactions.
 Return only the complete HTML code with embedded Tailwind CSS classes and necessary JavaScript.
 Do not include any markdown formatting or code blocks.`;
 
@@ -319,26 +322,26 @@ Do not include any markdown formatting or code blocks.`;
                     'float': 'float 3s ease-in-out infinite',
                     'slide-up': 'slideUp 0.5s ease-out',
                     'fade-in': 'fadeIn 0.5s ease-out',
-                    'scale-in': 'scaleIn 0.5s ease-out',
+                    'scale-in': 'scaleIn 0.5s ease-out'
                   },
                   keyframes: {
                     float: {
                       '0%, 100%': { transform: 'translateY(0)' },
-                      '50%': { transform: 'translateY(-20px)' },
+                      '50%': { transform: 'translateY(-20px)' }
                     },
                     slideUp: {
                       '0%': { transform: 'translateY(100px)', opacity: '0' },
-                      '100%': { transform: 'translateY(0)', opacity: '1' },
+                      '100%': { transform: 'translateY(0)', opacity: '1' }
                     },
                     fadeIn: {
                       '0%': { opacity: '0' },
-                      '100%': { opacity: '1' },
+                      '100%': { opacity: '1' }
                     },
                     scaleIn: {
                       '0%': { transform: 'scale(0.9)', opacity: '0' },
-                      '100%': { transform: 'scale(1)', opacity: '1' },
-                    },
-                  },
+                      '100%': { transform: 'scale(1)', opacity: '1' }
+                    }
+                  }
                 }
               }
             }
@@ -512,6 +515,7 @@ app.get('/test', (req, res) => {
     ]
   });
 });
+
 app.post('/chat', async (req, res) => {
   try {
     const { message } = req.body;
