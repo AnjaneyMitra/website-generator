@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import Link from 'next/link';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
+import Chatbot from './Chatbot';  // Add this import
 
 // Remove or use the unused interfaces and variables
 interface ChatMessage {
@@ -600,6 +601,10 @@ export default function Home() {
             </div>
           </main>
         </main>
+      </div>
+      {/* Add Chatbot component */}
+      <div className="fixed bottom-4 right-4 z-50">
+        <Chatbot />
       </div>
     </div>
   );

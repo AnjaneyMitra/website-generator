@@ -1,10 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
 import { MessageCircle, X, Trash2 } from 'lucide-react';
-import { ChatMessage, LocalStorageChatMessage } from '../types/chat';
 import { useAuth } from '../contexts/AuthContext';
 import { addDoc, collection } from 'firebase/firestore';
 import { db } from '../utils/firebase/firebaseConfig';
 import { v4 as uuidv4 } from 'uuid';
+
+interface ChatMessage {
+  id: string;
+  content: string;
+  role: 'user' | 'assistant';
+  timestamp: Date;
+  sender: 'user' | 'bot';
+  text: string;
+}
+
+interface LocalStorageChatMessage {
+  id: string;
+  content: string;
+  role: 'user' | 'assistant';
+  timestamp: string;
+  sender: 'user' | 'bot';
+  text: string;
+}
 
 // Define interfaces for generated pages
 interface GeneratedPage {
@@ -368,7 +385,7 @@ export default function Chatbot() {
             >
               <input
                 type="text"
-                className="flex-1 p-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-[#8B4513]"
+                className="flex-1 p-2 border rounded-md focus:outline-none focus:ring-1 focus:ring-[#8B4513] text-black"
                 placeholder="Type your message..."
                 value={chatMessage}
                 onChange={(e) => setChatMessage(e.target.value)}
