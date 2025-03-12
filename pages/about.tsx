@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Environment, Float, Text, Stars } from '@react-three/drei';
+import { OrbitControls, Environment, Float, Stars } from '@react-three/drei';
 import { Sparkles, ArrowRight, BriefcaseBusiness, Clock, Code, Palette } from 'lucide-react';
 import Link from 'next/link';
 import * as THREE from 'three';
@@ -211,10 +211,10 @@ export default function AboutUs() {
             <div className="backdrop-blur-xl bg-white/10 rounded-2xl border border-white/20 shadow-2xl shadow-amber-700/5 p-8 transform transition-all duration-500 hover:translate-y-[-5px] hover:bg-white/20">
               <h3 className="text-2xl font-bold text-neutral-800 mb-4">Our Mission</h3>
               <p className="text-neutral-600 mb-4">
-                At brix.ai, we're on a mission to democratize web development. We believe that creating beautiful, functional websites should be accessible to everyone, regardless of their coding expertise.
+                At brix.ai, we&apos;re on a mission to democratize web development. We believe that creating beautiful, functional websites should be accessible to everyone, regardless of their coding expertise.
               </p>
               <p className="text-neutral-600">
-                Through the power of artificial intelligence, we're transforming how websites are built—making the process faster, more intuitive, and more creative than ever before.
+                Through the power of artificial intelligence, we&apos;re transforming how websites are built—making the process faster, more intuitive, and more creative than ever before.
               </p>
             </div>
             
@@ -224,7 +224,7 @@ export default function AboutUs() {
                 Brix.ai combines cutting-edge AI with intuitive design principles to convert your ideas into production-ready websites. Our advanced models understand your requirements and generate clean, optimized code.
               </p>
               <p className="text-neutral-600">
-                We're constantly refining our technology to deliver websites that not only look stunning but also perform flawlessly across all devices and platforms.
+                We&apos;re constantly refining our technology to deliver websites that not only look stunning but also perform flawlessly across all devices and platforms.
               </p>
             </div>
           </div>
