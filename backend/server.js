@@ -188,68 +188,40 @@ app.post('/generate', async (req, res) => {
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     const detectedTheme = analyzePromptForTheme(prompt);
     const colors = getThemeColors(prompt);
+    
+    // Store the original prompt for consistent reference
+    const originalPrompt = prompt;
 
-    // Updated content prompt with explicit instruction on color scheme
+    // STEP 1: Generate content structure and raw HTML
+    console.log("STEP 1: Generating content structure and HTML...");
+    
     const contentPrompt = `
-Generate a modern, dynamic website for a ${websiteType} using Tailwind CSS with the following details:
-"${prompt}"
+Generate a structured HTML website based on this request:
+"${originalPrompt}"
 
 Requirements:
-1. Use a visually engaging style with ${detectedTheme}-themed designs and icons.
-2. Tone of voice: ${brandTone}.
-3. Use the ${detectedTheme} theme colors throughout the design. Ensure that the color scheme (including background, text, and accent colors) directly reflects a ${detectedTheme} style.
-4. Include all necessary sections for a ${websiteType} website.
-5. Generate real, contextual content (not lorem ipsum).
-6. Focus on clear call-to-actions and user engagement.
-7. Consider responsive design and a mobile-first approach.
-8. Include meta descriptions and title tags.
-9. Suggest image descriptions and placements.
-10. Only create forms if explicitly requested.
-11. Specify interactive elements and animations.
-12. Ensure the design is modern with smooth animations and transitions.
-13. Implement dynamic animations using JavaScript and make sure they work for:
-    - Scroll-triggered animations.
-    - Hover effects with transitions.
-    - Interactive elements like carousels and modals.
-14. Use modern layout patterns:
-    - Grid-based masonry layouts.
-    - Asymmetric hero sections.
-    - Floating elements with parallax.
-15. Ensure that any links are implemented as internal anchor links that redirect smoothly to the respective sections on the same page.
-16. For the hero section, if possible, generate typing effects to display the main headline dynamically and provide the javascript for it.
-17. Ensure performance optimizations such as lazy loading, optimized images with blur placeholders, and code splitting suggestions.
+1. Create a clean, semantic HTML5 structure for a ${websiteType} website.
+2. Include all necessary sections for this type of website.
+3. Generate meaningful, contextual content (not lorem ipsum) that matches the request.
+4. Include a navigation menu with links to each section.
+5. Use proper HTML5 semantic elements (header, footer, section, article, etc).
+6. Structure the document properly with appropriate heading hierarchy.
+7. Do not include any styling or CSS classes yet.
+8. Include meta information and SEO elements.
+9. For images, use placeholder elements with descriptive alt text.
+10. Include necessary textual content for all sections.
+11. Create a clear content hierarchy.
+12. Include forms, buttons, and interactive elements as needed.
+13. Return ONLY valid HTML, no markdown formatting or explanations.
 
-Return the response in valid JSON format with this structure:
+Return the response as a JSON object with this structure:
 {
+  "html": "the complete HTML structure without styling",
   "sections": [
     {
       "title": "section name",
-      "content": "section content",
-      "design": {
-        "layout": "grid|flex|cols-[1-12]",
-        "spacing": "tight|normal|loose",
-        "images": [
-          {
-            "description": "image description",
-            "alt": "alt text",
-            "size": "sm|md|lg"
-          }
-        ],
-        "animations": {
-          "entry": "fade|slide|zoom",
-          "scroll": "reveal|parallel",
-          "hover": "scale|glow",
-          "typing": "enabled" // if applicable in the hero section
-        },
-        "interactions": {
-          "buttons": "hover:scale|hover:glow",
-          "cards": "hover:lift|hover:shadow"
-        }
-      },
-      "meta": {
-        "description": "SEO description",
-        "keywords": ["keyword1", "keyword2"]
-      }
+      "content": "section content summary",
+      "designNotes": "brief notes about what this section should look like"
     }
   ],
   "globalMeta": {
@@ -258,51 +230,89 @@ Return the response in valid JSON format with this structure:
   }
 }`;
 
-
     const contentResult = await model.generateContent(contentPrompt);
     const contentResponse = await contentResult.response;
-    const generatedContent = ensureJsonResponse(contentResponse.text());
+    let generatedContent = ensureJsonResponse(contentResponse.text());
+    
+    // Ensure we only have clean HTML in the generatedContent.html field
+    if (generatedContent.html) {
+      generatedContent.html = cleanHtmlContent(generatedContent.html);
+    }
+    
+    console.log("Content structure generated successfully");
 
-const websitePrompt = `
-Generate a complete, modern website using Tailwind CSS for this content: ${JSON.stringify(generatedContent)}
+    // STEP 2: Style the HTML with Tailwind CSS
+    console.log("STEP 2: Applying Tailwind CSS styling...");
+    
+    const stylingPrompt = `
+You are an expert UI/UX designer specializing in Tailwind CSS.
 
-Technical Requirements:
-1. Use semantic HTML5 elements.
-2. Implement responsive design using Tailwind's responsive prefixes.
-3. Use a color scheme that is modern and matches the ${detectedTheme} theme as specified in the content prompt.
-4. Include these features:
-   - Responsive navigation with a hamburger menu.
-   - Header links  must be implemented as internal anchor links that redirect smoothly to their respective sections.
-   - Hero section with gradient background and, if possible, a typing effect for the main headline.
-   - Feature grid with hover effects.
-   - Testimonial carousel.
-   - Contact section with form validation.
-   - Footer with social links.
-5. Add these interactive elements:
-   - Color scheme matching the theme.
-   - Smooth scroll behavior.
-   - Hover animations using Tailwind's transition classes.
-   - Mobile menu toggle.
-   - Form validation.
-   - Intersection Observer for scroll animations.
-6. Include accessibility features:
-   - ARIA labels.
-   - Focus states.
-   
-7. Use Tailwind's built-in animations and transitions.
-8. Implement proper spacing using Tailwind's spacing utilities.
-9. Use Tailwind's container and max-width utilities.
-10. Include proper meta tags and structured data.
-11. For images display a placeholder saying "Put Image here".
-12. Ensure JavaScript-based animations are included for dynamic interactions.
-Return only the complete HTML code with embedded Tailwind CSS classes and necessary JavaScript.
-Do not include any markdown formatting or code blocks.`;
+Take this HTML structure and apply Tailwind CSS classes to create a beautiful, modern website that fulfills this exact request:
+"${originalPrompt}"
 
-    const websiteResult = await model.generateContent(websitePrompt);
-    const websiteResponse = await websiteResult.response;
-    const generatedCode = websiteResponse.text().replace(/```html\n?|\n?```/g, '').trim();
+HTML to style:
+${JSON.stringify(generatedContent.html)}
 
-    const processedCode = generatedCode
+Style Requirements:
+1. Use Tailwind CSS classes extensively for all styling.
+2. Apply a color scheme that matches the ${detectedTheme} theme.
+3. Make the design fully responsive using Tailwind's responsive prefixes (sm:, md:, lg:, xl:).
+4. Create a modern, clean aesthetic with proper spacing, typography, and visual hierarchy.
+5. Apply hover effects and transitions to interactive elements.
+6. Use a consistent color palette throughout.
+7. Implement a responsive navigation with mobile menu.
+8. DO NOT change the HTML structure or content - only add Tailwind classes.
+9. Ensure sufficient contrast between text and backgrounds.
+10. Optimize readability with appropriate font sizes and line heights.
+11. Apply proper padding and margins for visual breathing room.
+12. Create distinctive sections with varying background treatments.
+13. Return ONLY the complete HTML with Tailwind classes, no comments, explanations, or markdown.
+
+Return ONLY the complete HTML with Tailwind CSS classes added. Do not include any explanation or markdown formatting.`;
+
+    const stylingResult = await model.generateContent(stylingPrompt);
+    const stylingResponse = await stylingResult.response;
+    const styledHTML = cleanHtmlContent(stylingResponse.text());
+    
+    console.log("Tailwind styling applied successfully");
+
+    // STEP 3: Enhance with JavaScript animations and interactivity
+    console.log("STEP 3: Adding JavaScript animations and interactivity...");
+    
+    const enhancementPrompt = `
+You are a front-end developer specializing in creating beautiful, interactive web experiences.
+
+Take this Tailwind-styled HTML and enhance it with JavaScript animations and interactivity to fulfill this exact request:
+"${originalPrompt}"
+
+HTML to enhance:
+${styledHTML}
+
+Enhancement Requirements:
+1. Add modern, subtle animations to improve user experience.
+2. Implement scroll-triggered animations using Intersection Observer or GSAP.
+3. Add hover effects and transitions for interactive elements.
+4. Create a smooth-scrolling navigation system.
+5. Implement mobile menu toggle functionality.
+6. Add form validation if forms are present.
+7. Create subtle parallax effects or background animations if appropriate.
+8. Implement any carousels or sliders if mentioned in the design.
+9. Include loading animations or transitions between states.
+10. Add any typing effects to headings if appropriate.
+11. Optimize all animations for performance.
+12. DO NOT change the existing Tailwind styling or HTML structure - only add JavaScript and necessary attributes.
+13. Return ONLY the complete HTML with added JavaScript, no explanations or markdown.
+
+Return the complete HTML with all JavaScript included. Ensure all animations are tasteful and enhance rather than distract from the content.`;
+
+    const enhancementResult = await model.generateContent(enhancementPrompt);
+    const enhancementResponse = await enhancementResult.response;
+    const enhancedHTML = cleanHtmlContent(enhancementResponse.text());
+    
+    console.log("JavaScript enhancements added successfully");
+
+    // Process the final code with required CDN links and configurations
+    const processedCode = enhancedHTML
       .replace(/placehold\.co/g, 'picsum.photos')
       .replace(/<head>/, `
         <head>
@@ -346,139 +356,15 @@ Do not include any markdown formatting or code blocks.`;
               }
             }
           </script>
-      `)
-      .replace('</body>', `
-          <script>
-            // Initialize GSAP
-            gsap.registerPlugin(ScrollTrigger);
-
-            // Animate elements on page load
-            window.addEventListener('load', () => {
-              // Hero section animation
-              gsap.from('[data-animate="hero"]', {
-                duration: 1,
-                y: 100,
-                opacity: 0,
-                ease: "power4.out"
-              });
-
-              // Animate sections on scroll
-              gsap.utils.toArray('[data-animate="section"]').forEach((section, i) => {
-                gsap.from(section, {
-                  scrollTrigger: {
-                    trigger: section,
-                    start: "top 80%",
-                    toggleActions: "play none none reverse"
-                  },
-                  y: 60,
-                  opacity: 0,
-                  duration: 1,
-                  ease: "power2.out"
-                });
-              });
-
-              // Animate cards with stagger
-              gsap.utils.toArray('[data-animate="card"]').forEach((cards) => {
-                gsap.from(cards, {
-                  scrollTrigger: {
-                    trigger: cards,
-                    start: "top 85%"
-                  },
-                  y: 40,
-                  opacity: 0,
-                  duration: 0.6,
-                  stagger: 0.2,
-                  ease: "power2.out"
-                });
-              });
-
-              // Parallax effect for background elements
-              gsap.utils.toArray('[data-parallax]').forEach((element) => {
-                gsap.to(element, {
-                  scrollTrigger: {
-                    trigger: element,
-                    scrub: true
-                  },
-                  y: (i, target) => -100 * target.dataset.speed,
-                  ease: "none"
-                });
-              });
-            });
-
-            // Smooth scroll
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-              anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                  behavior: 'smooth'
-                });
-              });
-            });
-
-            // Mobile menu with animation
-            const mobileMenu = document.querySelector('[data-mobile-menu]');
-            const mobileMenuButton = document.querySelector('[data-mobile-menu-button]');
-            if (mobileMenuButton) {
-              mobileMenuButton.addEventListener('click', () => {
-                mobileMenu.classList.toggle('hidden');
-                gsap.from('[data-mobile-menu] > *', {
-                  y: -20,
-                  opacity: 0,
-                  duration: 0.3,
-                  stagger: 0.1,
-                  ease: "power2.out"
-                });
-              });
-            }
-
-            // Add hover animations for interactive elements
-            const addHoverAnimation = (elements, scale = 1.05) => {
-              elements.forEach(el => {
-                el.addEventListener('mouseenter', () => {
-                  gsap.to(el, { scale: scale, duration: 0.3, ease: "power2.out" });
-                });
-                el.addEventListener('mouseleave', () => {
-                  gsap.to(el, { scale: 1, duration: 0.3, ease: "power2.out" });
-                });
-              });
-            };
-
-            // Apply hover animations to buttons and cards
-            addHoverAnimation(document.querySelectorAll('[data-hover="button"]'), 1.05);
-            addHoverAnimation(document.querySelectorAll('[data-hover="card"]'), 1.03);
-
-            // Initialize counters if they exist
-            const animateCounter = (element) => {
-              const target = parseInt(element.dataset.target);
-              gsap.to(element, {
-                textContent: target,
-                duration: 2,
-                ease: "power2.out",
-                snap: { textContent: 1 },
-                scrollTrigger: {
-                  trigger: element,
-                  start: "top 80%"
-                }
-              });
-            };
-
-            document.querySelectorAll('[data-counter]').forEach(animateCounter);
-          </script>
-        </body>
       `);
 
+    console.log("Website generation completed successfully");
+
+    // Send only the code in the response
     res.json({ 
       code: processedCode,
-      content: generatedContent,
-      metadata: {
-        type: websiteType,
-        colorScheme,
-        style,
-        brandTone,
-        generated: new Date().toISOString(),
-        features: websiteTemplates[websiteType].features,
-        defaultClasses: websiteTemplates[websiteType].defaultClasses
-      }
+      // Remove other data to ensure only code is returned
+      // The content and metadata are removed as requested
     });
   } catch (error) {
     console.error('Error:', error);
@@ -488,6 +374,33 @@ Do not include any markdown formatting or code blocks.`;
     });
   }
 });
+
+// Helper function to clean HTML content from AI responses
+function cleanHtmlContent(content) {
+  // Remove markdown code blocks
+  let cleanedContent = content.replace(/```html\n?|\n?```/g, '').trim();
+  
+  // Remove any comments or explanations before or after the HTML
+  cleanedContent = cleanedContent.replace(/^\s*(?:Here's|The complete HTML|I've enhanced|This HTML|This is the|Here is the)[^<]*</i, '<');
+  
+  // Remove any trailing explanations after the HTML
+  cleanedContent = cleanedContent.replace(/<\/html>\s*[\s\S]*/i, '</html>');
+  
+  // Remove any lines that start with non-HTML characters (likely explanations)
+  const lines = cleanedContent.split('\n');
+  const htmlLines = lines.filter(line => {
+    const trimmedLine = line.trim();
+    return trimmedLine === '' || 
+           trimmedLine.startsWith('<') || 
+           trimmedLine.startsWith('//') || 
+           trimmedLine.startsWith('/*') || 
+           trimmedLine.includes('*/') ||
+           trimmedLine.startsWith('}') ||
+           (trimmedLine.includes('=') && trimmedLine.includes(';'));
+  });
+  
+  return htmlLines.join('\n');
+}
 
 app.get('/color-schemes', (req, res) => {
   res.json(themeKeywords);
