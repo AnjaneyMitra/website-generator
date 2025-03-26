@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Sparkles, User } from 'lucide-react';
+import { Loader2, Sparkles, User, Laptop, Smartphone } from 'lucide-react'; // Added new icons
 import { useRouter } from 'next/router';
 import { db } from '../firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
@@ -7,9 +7,50 @@ import { useAuth } from '../contexts/AuthContext';
 import Link from 'next/link';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
-import Chatbot from './Chatbot';  // Add this import
+import Chatbot from './Chatbot';
+import { Canvas } from '@react-three/fiber';
+import { OrbitControls, Stars, Float } from '@react-three/drei';
+import { motion } from 'framer-motion';
+import * as THREE from 'three';
 
-// Remove or use the unused interfaces and variables
+// Define proper types for components
+interface GeometricElementProps {
+  position: [number, number, number];
+  color?: string;
+  size?: number;
+}
+
+// Minimal geometric element for 3D scene
+const GeometricElement = ({ position, color = "#ffffff", size = 1 }: GeometricElementProps) => {
+  return (
+    <Float
+      speed={1.5} 
+      rotationIntensity={0.2} 
+      floatIntensity={0.5}
+    >
+      <mesh position={position}>
+        <octahedronGeometry args={[size, 0]} />
+        <meshStandardMaterial color={color} wireframe={true} />
+      </mesh>
+    </Float>
+  );
+};
+
+// Futuristic Scene
+const XAIScene = () => {
+  return (
+    <>
+      <ambientLight intensity={0.2} />
+      <directionalLight position={[0, 0, 5]} intensity={0.5} />
+      <GeometricElement position={[-2, 0, 0]} color="#3B82F6" size={0.5} />
+      <GeometricElement position={[2, 1, -2]} color="#ffffff" size={0.3} />
+      <GeometricElement position={[0, -1, -1]} color="#3B82F6" size={0.4} />
+      <Stars radius={50} depth={50} count={1000} factor={4} saturation={0} fade />
+      <OrbitControls enableZoom={false} enablePan={false} autoRotate autoRotateSpeed={0.5} />
+    </>
+  );
+};
+
 interface ChatMessage {
   content: string;
   role: 'user' | 'assistant';
@@ -26,7 +67,8 @@ export default function Home() {
   const [password, setPassword] = useState('');
   const [preview, setPreview] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);  // Changed default to true
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [previewMode, setPreviewMode] = useState<'wide' | 'mobile'>('wide'); // New state for preview mode
   
   const toggleSidebar = () => {
     setIsSidebarOpen(prev => !prev);
@@ -267,9 +309,6 @@ export default function Home() {
         // Store the edit in the editedElements ref
         editedElements.current[data.originalText] = data.newText;
         setUnsavedChanges(true);
-        
-        // The iframe contents stay as they are since the user is directly editing them
-        // No need to update setPreview here as the visual changes are already visible
       }
     };
 
@@ -304,9 +343,6 @@ export default function Home() {
   const handleChatMessage = (message: ChatMessage) => {
     // Save chat message to Firestore
     saveChatHistory(message);
-    
-    // If you need to perform additional actions with the chat message,
-    // add them here
   };
 
   async function handleLogin(e: React.FormEvent) {
@@ -334,33 +370,42 @@ export default function Home() {
   // If authentication is loading, show a loading spinner
   if (authLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <Loader2 className="w-8 h-8 animate-spin text-[#8B4513]" />
+      <div className="flex items-center justify-center min-h-screen bg-black">
+        <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
       </div>
     );
   }
 
-  // If not authenticated, show the login form
+  // If not authenticated, show the login form with X.AI-inspired style
   if (!currentUser) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-100 to-gray-200 flex flex-col justify-center py-12 px-6">
-        <div className="sm:mx-auto sm:w-full sm:max-w-md">
-          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Sign in to Website Generator
-          </h2>
+      <div className="min-h-screen bg-black flex flex-col justify-center py-12 px-6">
+        <div className="relative z-0">
+          <Canvas className="absolute inset-0">
+            <XAIScene />
+          </Canvas>
         </div>
 
-        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
-          <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <div className="sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+          <h2 className="mt-6 text-center text-3xl font-bold text-white">
+            brix<span className="text-blue-500">.</span>ai
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-400">
+            Sign in to continue
+          </p>
+        </div>
+
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md relative z-10">
+          <div className="bg-zinc-900 py-8 px-4 shadow sm:rounded-lg sm:px-10 border border-zinc-800">
             {loginError && (
-              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
+              <div className="bg-red-900/30 border border-red-800 text-red-400 px-4 py-3 rounded mb-4">
                 {loginError}
               </div>
             )}
             
             <form className="space-y-6" onSubmit={handleLogin}>
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="email" className="block text-sm font-medium text-gray-300">
                   Email address
                 </label>
                 <div className="mt-1">
@@ -372,13 +417,13 @@ export default function Home() {
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+                <label htmlFor="password" className="block text-sm font-medium text-gray-300">
                   Password
                 </label>
                 <div className="mt-1">
@@ -390,7 +435,7 @@ export default function Home() {
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                    className="appearance-none block w-full px-3 py-2 bg-zinc-800 border border-zinc-700 text-white rounded-md shadow-sm placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                   />
                 </div>
               </div>
@@ -398,7 +443,7 @@ export default function Home() {
               <div>
                 <button
                   type="submit"
-                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Sign in
                 </button>
@@ -408,17 +453,17 @@ export default function Home() {
             <div className="mt-6">
               <div className="relative">
                 <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
+                  <div className="w-full border-t border-zinc-800"></div>
                 </div>
                 <div className="relative flex justify-center text-sm">
-                  <span className="px-2 bg-white text-gray-500">Or continue with</span>
+                  <span className="px-2 bg-zinc-900 text-gray-400">Or continue with</span>
                 </div>
               </div>
 
               <div className="mt-6">
                 <button
                   onClick={handleGoogleSignIn}
-                  className="w-full flex justify-center py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+                  className="w-full flex justify-center py-2 px-4 border border-zinc-800 rounded-md shadow-sm text-sm font-medium text-gray-300 bg-zinc-800 hover:bg-zinc-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   Sign in with Google
                 </button>
@@ -426,9 +471,9 @@ export default function Home() {
             </div>
 
             <div className="mt-6 text-center text-sm">
-              <p className="text-gray-600">
+              <p className="text-gray-400">
                 Don't have an account?{' '}
-                <Link href="/signup" className="font-medium text-indigo-600 hover:text-indigo-500">
+                <Link href="/signup" className="font-medium text-blue-500 hover:text-blue-400">
                   Sign up
                 </Link>
               </p>
@@ -439,63 +484,76 @@ export default function Home() {
     );
   }
 
-  // Otherwise, show the generator UI
+  // Otherwise, show the generator UI with X.AI-inspired style
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-black text-white font-sans">
       <div className="flex">
-        <Sidebar isOpen={isSidebarOpen} onClose={toggleSidebar} />
+        {/* Sidebar with updated styling */}
+        <div className={`fixed inset-y-0 left-0 z-20 w-72 bg-zinc-900 border-r border-zinc-800 transform transition-transform duration-300 ease-in-out ${
+          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}>
+          <Sidebar isOpen={isSidebarOpen} onClose={toggleSidebar} />
+        </div>
         
         <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-72' : 'ml-0'}`}>
-          <main className="min-h-screen bg-gradient-to-b from-neutral-200 via-neutral-100 to-neutral-200">
-            {/* Animated background elements */}
-            <div className="fixed inset-0 overflow-hidden pointer-events-none">
-              <div className="absolute -inset-[10px] opacity-30">
-                <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-[#2563eb] rounded-full mix-blend-multiply filter blur-3xl animate-pulse" />
-                <div className="absolute top-1/3 right-1/4 w-96 h-96 bg-neutral-400 rounded-full mix-blend-multiply filter blur-3xl animate-pulse delay-1000" />
-              </div>
+          <div className="min-h-screen relative">
+            {/* 3D Background */}
+            <div className="absolute inset-0 z-0 opacity-70">
+              <Canvas>
+                <XAIScene />
+              </Canvas>
             </div>
 
-            <div className="relative max-w-6xl mx-auto p-8">
-              {/* Header with Next.js Link */}
+            <div className="relative z-10 max-w-7xl mx-auto p-8">
+              {/* Header with Link */}
               <div className="text-center space-y-6 py-16">
-                <div className="inline-block relative">
-                  <div className="absolute inset-0 blur-2xl bg-gradient-to-r from-[#2563eb] via-neutral-600 to-[#2563eb] opacity-30" />
-                  <Link href={"/about"} className="inline-block cursor-pointer">
-                    <h1 className="relative text-8xl font-black tracking-tight text-neutral-800 drop-shadow-2xl transition-transform hover:scale-105">
-                      brix<span className="text-[#2563eb]">.ai</span>
+                <motion.div 
+                  className="inline-block relative"
+                  whileHover={{ scale: 1.05 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <Link href={"/about"}>
+                    <h1 className="text-7xl sm:text-8xl md:text-9xl font-bold tracking-tight mb-2">
+                      brix<span className="text-blue-500">.</span>ai
                     </h1>
-                    <Sparkles className="absolute -top-8 -right-10 w-10 h-10 text-[#2563eb] animate-bounce" />
                   </Link>
-                </div>
-                <p className="text-xl text-neutral-600 font-medium tracking-wide max-w-2xl mx-auto">
+                </motion.div>
+                <div className="h-px w-24 bg-gradient-to-r from-transparent via-blue-500 to-transparent mx-auto my-8"></div>
+                <p className="text-xl md:text-2xl text-gray-400 max-w-2xl text-center font-light mx-auto">
                   Transform your ideas into production-ready websites with AI-powered precision
                 </p>
               </div>
 
               {/* User account section */}
               <div className="absolute top-4 right-4 flex items-center space-x-4">
-                <Link href="/account" className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200">
-                  <User className="w-4 h-4 mr-2 inline" />
-                  Account
+                <Link href="/account" className="group flex items-center border-b border-transparent hover:border-white pb-1 transition-colors">
+                  <User className="w-4 h-4 mr-2" />
+                  <span>Account</span>
                 </Link>
-                <button onClick={logout} className="px-4 py-2 text-sm font-medium text-white bg-red-500 rounded-md hover:bg-red-600">
+                <button 
+                  onClick={logout} 
+                  className="inline-block bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium transition-colors duration-300"
+                >
                   Logout
                 </button>
               </div>
 
               <div className="container mx-auto p-4">
-                <div className="bg-white rounded-lg shadow-md p-6">
-                  
-                  
-                  {/* Rest of the generator interface */}
-                  <div className="mb-4">
-                    <label htmlFor="prompt" className="block text-sm font-medium text-gray-700 mb-3">
+                <motion.div 
+                  className="border border-zinc-800 p-8 hover:border-blue-500 transition-colors duration-300 bg-black/60 backdrop-blur-sm rounded-lg"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                >
+                  {/* Generator interface */}
+                  <div className="mb-8">
+                    <label htmlFor="prompt" className="block text-2xl font-medium text-white mb-4">
                       Describe your website
                     </label>
-                    <div className="flex gap-2">
+                    <div className="flex gap-4">
                       <textarea
                         id="prompt"
-                        className="flex-1 p-4 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 text-black shadow-sm transition-all duration-200 hover:border-gray-300 resize-none"
+                        className="flex-1 p-4 bg-zinc-800 border border-zinc-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-zinc-600 resize-none"
                         placeholder="Describe the website you want to generate..."
                         value={prompt}
                         onChange={(e) => setPrompt(e.target.value)}
@@ -504,10 +562,10 @@ export default function Home() {
                       <button
                         onClick={generateWebsite}
                         disabled={loading || !prompt.trim()}
-                        className={`px-6 py-2 bg-blue-600 text-white rounded-2xl flex items-center transition-all duration-200 ${
+                        className={`px-8 py-4 text-lg font-medium flex items-center transition-all duration-200 ${
                           loading || !prompt.trim() 
-                            ? 'opacity-50 cursor-not-allowed' 
-                            : 'hover:bg-blue-700 hover:shadow-md active:scale-95'
+                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
                         }`}
                       >
                         {loading ? (
@@ -522,15 +580,20 @@ export default function Home() {
 
                   {/* Preview/Code tabs and content section */}
                   {generatedCode && (
-                    <div className="mt-6">
-                      <div className="border-b border-gray-200 mb-4">
+                    <motion.div 
+                      className="mt-10"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ duration: 0.5, delay: 0.2 }}
+                    >
+                      <div className="flex justify-between items-center border-b border-zinc-800 mb-6">
                         <nav className="-mb-px flex space-x-8">
                           <button
                             onClick={() => setActiveTab('preview')}
                             className={`py-2 px-1 border-b-2 font-medium text-sm ${
                               activeTab === 'preview'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-500'
+                                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
                             }`}
                           >
                             Preview
@@ -539,31 +602,90 @@ export default function Home() {
                             onClick={() => setActiveTab('code')}
                             className={`py-2 px-1 border-b-2 font-medium text-sm ${
                               activeTab === 'code'
-                                ? 'border-blue-500 text-blue-600'
-                                : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                ? 'border-blue-500 text-blue-500'
+                                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
                             }`}
                           >
                             Code
                           </button>
                         </nav>
+
+                        {/* Device preview switcher */}
+                        {activeTab === 'preview' && (
+                          <div className="flex items-center space-x-2 mb-2 bg-zinc-800 rounded-md p-1">
+                            <button
+                              onClick={() => setPreviewMode('wide')}
+                              className={`p-2 rounded flex items-center text-xs ${
+                                previewMode === 'wide' 
+                                  ? 'bg-blue-500/20 text-blue-400' 
+                                  : 'text-gray-400 hover:bg-zinc-700'
+                              }`}
+                              title="Desktop/Laptop View"
+                            >
+                              <Laptop className="w-4 h-4 mr-1" />
+                              <span>Wide</span>
+                            </button>
+                            <button
+                              onClick={() => setPreviewMode('mobile')}
+                              className={`p-2 rounded flex items-center text-xs ${
+                                previewMode === 'mobile' 
+                                  ? 'bg-blue-500/20 text-blue-400' 
+                                  : 'text-gray-400 hover:bg-zinc-700'
+                              }`}
+                              title="Mobile View"
+                            >
+                              <Smartphone className="w-4 h-4 mr-1" />
+                              <span>Mobile</span>
+                            </button>
+                          </div>
+                        )}
                       </div>
 
                       {activeTab === 'preview' ? (
-                        <iframe
-                          ref={iframeRef}
-                          srcDoc={preview}
-                          className="w-full h-[600px] border border-gray-200 rounded-lg"
-                          sandbox="allow-same-origin allow-scripts"
-                          title="Website Preview"
-                        />
+                        <div className={`flex justify-center ${previewMode === 'mobile' ? 'bg-zinc-800/50 py-8 rounded-lg' : ''}`}>
+                          <div 
+                            className={
+                              previewMode === 'mobile'
+                                ? 'w-[375px] h-[667px] relative border-8 border-zinc-700 rounded-[36px] overflow-hidden shadow-lg'
+                                : 'w-full'
+                            }
+                          >
+                            {previewMode === 'mobile' && (
+                              <>
+                                {/* Notch for mobile view */}
+                                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-24 h-6 bg-zinc-700 rounded-b-lg z-10"></div>
+                                {/* Home indicator for mobile view */}
+                                <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-zinc-600 rounded-full z-10"></div>
+                              </>
+                            )}
+                            <iframe
+                              ref={iframeRef}
+                              srcDoc={preview}
+                              className={`border-0 bg-white ${
+                                previewMode === 'mobile'
+                                  ? 'w-full h-full'
+                                  : 'w-full h-[600px] border border-zinc-800 rounded-lg'
+                              }`}
+                              sandbox="allow-same-origin allow-scripts"
+                              title="Website Preview"
+                              style={{
+                                // Add additional styles for mobile version to properly scale content
+                                ...(previewMode === 'mobile' ? { 
+                                  width: '375px', 
+                                  height: '667px', 
+                                } : {})
+                              }}
+                            />
+                          </div>
+                        </div>
                       ) : (
                         <div className="relative">
-                          <pre className="bg-gray-900 text-gray-100 p-4 rounded-lg overflow-x-auto">
+                          <pre className="bg-zinc-900 text-gray-300 p-4 rounded-lg overflow-x-auto border border-zinc-800">
                             <code>{generatedCode}</code>
                           </pre>
                           <button
                             onClick={downloadCode}
-                            className="absolute top-2 right-2 px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                            className="absolute top-2 right-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200 text-sm"
                           >
                             Download
                           </button>
@@ -571,13 +693,13 @@ export default function Home() {
                       )}
 
                       {activeTab === 'preview' && generatedCode && (
-                        <div className="mt-4 flex justify-end space-x-4">
+                        <div className="mt-6 flex justify-end space-x-4">
                           <button
                             onClick={toggleEditMode}
-                            className={`px-4 py-2 rounded ${
+                            className={`px-8 py-4 text-lg font-medium transition-colors duration-300 ${
                               editMode 
-                                ? 'bg-green-500 hover:bg-green-600 text-white'
-                                : 'bg-blue-500 hover:bg-blue-600 text-white'
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
                             }`}
                           >
                             {editMode ? 'Save & Exit Edit Mode' : 'Enter Edit Mode'}
@@ -585,24 +707,23 @@ export default function Home() {
                           {unsavedChanges && (
                             <button
                               onClick={applyAllEdits}
-                              className="px-4 py-2 bg-yellow-500 text-white rounded hover:bg-yellow-600"
+                              className="px-8 py-4 text-lg font-medium bg-yellow-600 hover:bg-yellow-700 text-white transition-colors duration-300"
                             >
                               Apply Changes
                             </button>
                           )}
                         </div>
                       )}
-                    </div>
+                    </motion.div>
                   )}
-                  
-                  {/* Actions section with download button, edit mode toggle, etc. would go here */}
-                </div>
+                </motion.div>
               </div>
             </div>
-          </main>
+          </div>
         </main>
       </div>
-      {/* Add Chatbot component */}
+      
+      {/* Chatbot component */}
       <div className="fixed bottom-4 right-4 z-50">
         <Chatbot />
       </div>
