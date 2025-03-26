@@ -17,7 +17,7 @@
   },
   "dependencies": {
     "@firebase/data-connect": "^0.1.0",
-    "@firebasegen/default-connector": "file:../dataconnect-generated/js/default-connector",
+    "@firebasegen/default-connector": "file:dataconnect-generated/js/default-connector",
     "@react-three/drei": "^9.122.0",
     "@react-three/fiber": "^8.18.0",
     "@tanstack-query-firebase/react": "^1.0.5",
@@ -28,7 +28,7 @@
     "@types/uuid": "^10.0.0",
     "cheerio": "^1.0.0",
     "dompurify": "^3.1.7",
-    "firebase": "^11.3.0",
+    "firebase": "^11.5.0",
     "lucide-react": "^0.453.0",
     "next": "^15.2.2",
     "prettier": "^3.4.2",
