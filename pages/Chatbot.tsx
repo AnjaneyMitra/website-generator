@@ -10,8 +10,9 @@ interface ChatMessage {
   content: string;
   role: 'user' | 'assistant';
   timestamp: Date;
-  sender: 'user' | 'bot';
-  text: string;
+  // For backward compatibility
+  sender?: 'user' | 'bot';
+  text?: string;
 }
 
 interface LocalStorageChatMessage {
@@ -19,8 +20,8 @@ interface LocalStorageChatMessage {
   content: string;
   role: 'user' | 'assistant';
   timestamp: string;
-  sender: 'user' | 'bot';
-  text: string;
+  sender?: 'user' | 'bot';
+  text?: string;
 }
 
 // Define interfaces for generated pages
@@ -96,11 +97,11 @@ export default function Chatbot() {
     if (chatOpen && !welcomed) {
       const welcomeMessage: ChatMessage = {
         id: uuidv4(),
-        sender: 'bot',
-        text: "Hi, I'm Brix.AI! Together we will build a website. Ask me anything and I'll help you with it.",
         content: "Hi, I'm Brix.AI! Together we will build a website. Ask me anything and I'll help you with it.",
         role: 'assistant',
-        timestamp: new Date()
+        timestamp: new Date(),
+        sender: 'bot',
+        text: "Hi, I'm Brix.AI! Together we will build a website. Ask me anything and I'll help you with it."
       };
       setChatHistory([welcomeMessage]);
       setWelcomed(true);
@@ -110,6 +111,9 @@ export default function Chatbot() {
         ...welcomeMessage,
         timestamp: welcomeMessage.timestamp.toISOString()
       }]));
+      
+      // Also save to Firestore for persistence
+      saveChatMessageToFirestore(welcomeMessage);
     }
   }, [chatOpen, welcomed]);
 
@@ -161,9 +165,16 @@ export default function Chatbot() {
           timestamp: message.timestamp,
           pageId: currentPageId // Store reference to current page if any
         });
+        console.log('Message saved to Firestore successfully');
       } catch (error) {
         console.error('Error saving message to Firestore:', error);
+        // Show the exact error for debugging
+        if (error instanceof Error) {
+          console.error('Error details:', error.message);
+        }
       }
+    } else {
+      console.warn('Cannot save message - user not authenticated');
     }
   };
   
@@ -221,91 +232,71 @@ export default function Chatbot() {
         
       const response = await fetch('http://localhost:3001/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          message: userMessage.text,
-          currentPage: currentPage ? {
-            id: currentPage.id,
-            name: currentPage.name,
-            code: currentPage.code
-          } : null
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          message: userMessage.content,
+          history: chatHistory.map(msg => ({
+            role: msg.role,
+            content: msg.content
+          })),
+          currentPageId,
+          currentPageCode: currentPage?.code || null,
+          currentPageName: currentPage?.name || null,
         }),
       });
 
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
       const data = await response.json();
       
-      // Process the response - check if it contains a generated page
-      if (data.generatedPage) {
-        // Case 1: New page was generated
-        if (!currentPageId) {
-          const newPage: GeneratedPage = {
-            id: uuidv4(),
-            name: data.generatedPage.name || 'New Page',
-            code: data.generatedPage.code,
-            timestamp: new Date()
-          };
-          
-          setGeneratedPages(prev => [...prev, newPage]);
-          setCurrentPageId(newPage.id);
-          
-          // Save to Firestore
-          await saveGeneratedPageToFirestore(newPage);
-          
-          // Append info about the generated page to the bot's message
-          data.message = `${data.message}\n\nI've created a new page named "${newPage.name}" for you.`;
-        } 
-        // Case 2: Existing page was updated
-        else {
-          const updatedPages = generatedPages.map(page => 
-            page.id === currentPageId 
-              ? { 
-                  ...page, 
-                  code: data.generatedPage.code,
-                  name: data.generatedPage.name || page.name,
-                  timestamp: new Date()
-                }
-              : page
-          );
-          
-          setGeneratedPages(updatedPages);
-          
-          // Save updated page to Firestore
-          const updatedPage = updatedPages.find(p => p.id === currentPageId);
-          if (updatedPage) {
-            await saveGeneratedPageToFirestore(updatedPage);
-          }
-          
-          // Append info about the updated page to the bot's message
-          data.message = `${data.message}\n\nI've updated the page "${updatedPage?.name}" for you.`;
-        }
-      }
-      
-      // Add bot response
-      const botMessage: ChatMessage = {
+      // Add AI response
+      const aiMessage: ChatMessage = {
         id: uuidv4(),
-        content: data.message,
+        content: data.message || "Sorry, I couldn't generate a response.",
         role: 'assistant',
         timestamp: new Date(),
         sender: 'bot',
-        text: data.message
+        text: data.message || "Sorry, I couldn't generate a response."
       };
       
-      setChatHistory(prev => [...prev, botMessage]);
+      setChatHistory(prev => [...prev, aiMessage]);
       
-      // Save bot message to Firestore
-      await saveChatMessageToFirestore(botMessage);
+      // Save AI message to Firestore
+      await saveChatMessageToFirestore(aiMessage);
+      
+      // If we received a generated page
+      if (data.generatedPage) {
+        const newPage: GeneratedPage = {
+          id: uuidv4(),
+          name: data.generatedPage.name || 'New Page',
+          code: data.generatedPage.code,
+          timestamp: new Date()
+        };
+        
+        setGeneratedPages(prev => [...prev, newPage]);
+        setCurrentPageId(newPage.id);
+        
+        // Save to Firestore
+        await saveGeneratedPageToFirestore(newPage);
+      }
     } catch (error) {
       console.error('Error sending message:', error);
       
-      // Add error message
-      setChatHistory(prev => [...prev, {
+      // Add error message to chat
+      const errorMessage: ChatMessage = {
         id: uuidv4(),
-        content: "Sorry, I couldn't process your request. Please try again.",
+        content: "Sorry, I encountered an error. Please try again later.",
         role: 'assistant',
         timestamp: new Date(),
         sender: 'bot',
-        text: "Sorry, I couldn't process your request. Please try again."
-      }]);
+        text: "Sorry, I encountered an error. Please try again later."
+      };
+      
+      setChatHistory(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
     }

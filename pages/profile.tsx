@@ -12,6 +12,7 @@ interface FirestoreChatMessage {
   role: 'user' | 'assistant';
   timestamp: Timestamp;
   id?: string;
+  pageId?: string | null;
 }
 
 export default function Profile() {
@@ -26,7 +27,7 @@ export default function Profile() {
         const q = query(
           collection(db, 'chats'), 
           where('uid', '==', currentUser.uid),
-          orderBy('timestamp', 'asc')
+          orderBy('timestamp', 'desc')  // Changed to desc to show newest first
         );
         const querySnapshot = await getDocs(q);
         const chats = querySnapshot.docs.map(doc => ({

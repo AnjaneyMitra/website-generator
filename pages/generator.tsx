@@ -52,8 +52,12 @@ const XAIScene = () => {
 };
 
 interface ChatMessage {
+  id: string;
   content: string;
   role: 'user' | 'assistant';
+  timestamp: Date;
+  sender?: 'user' | 'bot';
+  text?: string;
 }
 
 export default function Home() {
@@ -332,7 +336,7 @@ export default function Home() {
           uid: currentUser.uid,
           content: message.content,
           role: message.role,
-          timestamp: new Date(),
+          timestamp: message.timestamp,
         });
       } catch (error) {
         console.error('Error saving chat history:', error);
