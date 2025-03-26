@@ -33,6 +33,7 @@
     "framer-motion": "^12.6.0",
     "lucide-react": "^0.453.0",
     "next": "^15.2.2",
+    "nodemailer": "^6.10.0",
     "prettier": "^3.4.2",
     "react": "^18.2.0",
     "react-bootstrap": "^2.10.9",
@@ -44,6 +45,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/nodemailer": "^6.4.17",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/react-syntax-highlighter": "^15.5.13",

@@ -1,11 +1,11 @@
 import React, { useRef, useState, useEffect } from 'react';
 import Head from 'next/head';
 import { useInView } from 'react-intersection-observer';
-import { motion, useScroll, useTransform } from 'framer-motion';
+import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
-import { OrbitControls, Stars, Float, Sphere } from '@react-three/drei';
+import { OrbitControls, Stars, Float, Sphere, Trail, PointMaterial } from '@react-three/drei';
 import Link from 'next/link';
-import { ChevronRight } from 'lucide-react';
+import { ChevronRight, Send, Check } from 'lucide-react';
 import * as THREE from 'three';
 
 // Define proper types for the component props
@@ -154,6 +154,7 @@ const AboutPage: React.FC = () => {
           <CapabilitiesSection />
           <TeamSection />
           <CallToAction />
+          <ContactFormSection />
           <Footer />
         </div>
       </main>
@@ -424,6 +425,432 @@ const CallToAction: React.FC = () => {
             Get Started
           </Link>
         </motion.div>
+      </div>
+    </section>
+  );
+};
+
+// Particles component for visual effect around the form
+const FormParticles = () => {
+  const count = 100;
+  const points = useRef<THREE.Points>(null);
+  const particlePositions = useRef<Float32Array>(new Float32Array(count * 3));
+  
+  useEffect(() => {
+    // Initialize particle positions
+    for (let i = 0; i < count; i++) {
+      const i3 = i * 3;
+      particlePositions.current[i3] = (Math.random() - 0.5) * 10;
+      particlePositions.current[i3 + 1] = (Math.random() - 0.5) * 6;
+      particlePositions.current[i3 + 2] = (Math.random() - 0.5) * 4;
+    }
+    
+    if (points.current) {
+      points.current.geometry.setAttribute(
+        'position',
+        new THREE.BufferAttribute(particlePositions.current, 3)
+      );
+      points.current.geometry.attributes.position.needsUpdate = true;
+    }
+  }, []);
+  
+  useFrame((state) => {
+    if (points.current) {
+      for (let i = 0; i < count; i++) {
+        const i3 = i * 3;
+        const x = particlePositions.current[i3];
+        const y = particlePositions.current[i3 + 1];
+        const z = particlePositions.current[i3 + 2];
+        
+        // Slow oscillating movement
+        particlePositions.current[i3] = x + Math.sin(state.clock.elapsedTime * 0.1 + i) * 0.005;
+        particlePositions.current[i3 + 1] = y + Math.cos(state.clock.elapsedTime * 0.08 + i) * 0.005;
+        particlePositions.current[i3 + 2] = z + Math.sin(state.clock.elapsedTime * 0.05 + i) * 0.002;
+      }
+      
+      points.current.geometry.attributes.position.needsUpdate = true;
+    }
+  });
+  
+  return (
+    <points ref={points}>
+      <bufferGeometry />
+      <pointsMaterial size={0.05} color="#3B82F6" transparent opacity={0.6} />
+    </points>
+  );
+};
+
+// Interactive Form Component with wow factor
+const ContactFormSection: React.FC = () => {
+  const [formState, setFormState] = useState({
+    name: '',
+    email: '',
+    interest: '',
+    message: ''
+  });
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitted, setIsSubmitted] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const { ref, inView } = useInView({
+    triggerOnce: false,
+    threshold: 0.3
+  });
+  
+  // Mouse position for interactive effects
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const smoothMouseX = useSpring(mouseX, { damping: 50, stiffness: 400 });
+  const smoothMouseY = useSpring(mouseY, { damping: 50, stiffness: 400 });
+  
+  // Track mouse position for form interactivity
+  const handleMouseMove = (e: React.MouseEvent) => {
+    const rect = (e.currentTarget as HTMLDivElement).getBoundingClientRect();
+    const x = (e.clientX - rect.left) / rect.width - 0.5;
+    const y = (e.clientY - rect.top) / rect.height - 0.5;
+    
+    mouseX.set(x);
+    mouseY.set(y);
+  };
+  
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    // Basic validation
+    const newErrors: Record<string, string> = {};
+    if (!formState.name.trim()) newErrors.name = "Name is required";
+    if (!formState.email.trim()) {
+      newErrors.email = "Email is required";
+    } else if (!/\S+@\S+\.\S+/.test(formState.email)) {
+      newErrors.email = "Email is invalid";
+    }
+    
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      return;
+    }
+    
+    setIsSubmitting(true);
+    setSubmitError(null);
+    
+    try {
+      // Send the data to our API endpoint
+      const response = await fetch('/api/contact', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(formState),
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.message || 'Something went wrong');
+      }
+      
+      // If we're in development, log the preview URL
+      if (data.previewUrl) {
+        console.log('Email preview URL:', data.previewUrl);
+      }
+      
+      setIsSubmitting(false);
+      setIsSubmitted(true);
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      setIsSubmitting(false);
+      setSubmitError(error instanceof Error ? error.message : 'Failed to send message');
+    }
+  };
+  
+  // Handle input changes
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormState(prev => ({ ...prev, [name]: value }));
+    
+    // Clear error on field change
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+  
+  // Form animation variants
+  const formVariants = {
+    hidden: { 
+      opacity: 0,
+      y: 50
+    },
+    visible: { 
+      opacity: 1,
+      y: 0,
+      transition: {
+        duration: 1,
+        staggerChildren: 0.1
+      }
+    }
+  };
+  
+  const formItemVariants = {
+    hidden: { opacity: 0, y: 20 },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      transition: { duration: 0.6 }
+    }
+  };
+  
+  // Success animation variants
+  const successVariants = {
+    hidden: { scale: 0.8, opacity: 0 },
+    visible: { 
+      scale: 1, 
+      opacity: 1,
+      transition: {
+        type: "spring",
+        stiffness: 200,
+        damping: 10
+      }
+    }
+  };
+  
+  // Interactive form container style
+  const formContainerStyle = {
+    x: useTransform(smoothMouseX, [-0.5, 0.5], [-5, 5]),
+    y: useTransform(smoothMouseY, [-0.5, 0.5], [-5, 5]),
+    rotateX: useTransform(smoothMouseY, [-0.5, 0.5], [2, -2]),
+    rotateY: useTransform(smoothMouseX, [-0.5, 0.5], [-2, 2])
+  };
+  
+  // Border glow effect based on mouse position
+  const glowStyle = {
+    background: useTransform(
+      smoothMouseX,
+      [-0.5, 0.5],
+      ['radial-gradient(circle at 0% 50%, rgba(59, 130, 246, 0.5) 0%, transparent 50%)', 
+       'radial-gradient(circle at 100% 50%, rgba(59, 130, 246, 0.5) 0%, transparent 50%)']
+    )
+  };
+  
+  return (
+    <section className="py-32 px-6 md:px-12 relative">
+      {/* Animated background elements */}
+      <div className="absolute inset-0 overflow-hidden">
+        <div className="absolute -top-24 -left-24 w-48 h-48 bg-blue-600/10 rounded-full blur-3xl"></div>
+        <div className="absolute top-1/2 -right-24 w-64 h-64 bg-indigo-600/10 rounded-full blur-3xl"></div>
+        <div className="absolute -bottom-24 left-1/3 w-72 h-72 bg-blue-500/10 rounded-full blur-3xl"></div>
+      </div>
+      
+      <div className="max-w-7xl mx-auto relative">
+        <motion.h2 
+          className="text-4xl md:text-5xl font-bold mb-12 text-center bg-clip-text text-transparent bg-gradient-to-r from-white to-blue-100"
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true }}
+          transition={{ duration: 0.8 }}
+        >
+          Get in Touch
+        </motion.h2>
+        
+        <div className="relative h-[500px] sm:h-[600px]" ref={ref}>
+          {/* Form Canvas with 3D elements */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+            <Canvas dpr={[1, 2]}>
+              <ambientLight intensity={0.2} />
+              <FormParticles />
+              <OrbitControls 
+                enableZoom={false} 
+                enablePan={false} 
+                enableRotate={false} 
+              />
+            </Canvas>
+          </div>
+          
+          {/* Interactive Form Container */}
+          <div className="flex items-center justify-center h-full relative z-10" onMouseMove={handleMouseMove}>
+            <motion.div 
+              className="relative w-full max-w-xl"
+              initial="hidden"
+              animate={inView ? "visible" : "hidden"}
+              variants={formVariants}
+            >
+              {/* Animated glow border */}
+              <motion.div 
+                className="absolute -inset-px rounded-2xl opacity-70"
+                style={glowStyle}
+              ></motion.div>
+              
+              {/* Form Panel */}
+              <motion.div
+                className="relative backdrop-blur-lg bg-gradient-to-br from-black/60 to-blue-900/10 border border-blue-900/30 p-8 sm:p-10 rounded-2xl shadow-2xl overflow-hidden"
+                style={formContainerStyle}
+              >
+                {/* Connection lines animation in background */}
+                <div className="absolute inset-0 opacity-10">
+                  <svg width="100%" height="100%" className="absolute inset-0">
+                    <defs>
+                      <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+                        <path d="M 40 0 L 0 0 0 40" fill="none" stroke="rgba(59, 130, 246, 0.5)" strokeWidth="0.5" />
+                      </pattern>
+                    </defs>
+                    <rect width="100%" height="100%" fill="url(#grid)" />
+                  </svg>
+                </div>
+                
+                {!isSubmitted ? (
+                  <form onSubmit={handleSubmit} className="relative z-20">
+                    {/* Show error message if submission failed */}
+                    {submitError && (
+                      <motion.div 
+                        className="mb-6 p-3 bg-red-900/30 border border-red-800 rounded-lg text-red-200 text-sm"
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                      >
+                        <p>{submitError}</p>
+                      </motion.div>
+                    )}
+                    
+                    <motion.div className="mb-6" variants={formItemVariants}>
+                      <label className="block text-blue-100 text-sm font-medium mb-2" htmlFor="name">
+                        Name
+                      </label>
+                      <div className="relative">
+                        <input
+                          className={`w-full bg-black/30 border ${errors.name ? 'border-red-500' : 'border-blue-700'} rounded-lg p-3 text-white placeholder-blue-300/50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300`}
+                          type="text"
+                          id="name"
+                          name="name"
+                          placeholder="Your name"
+                          value={formState.name}
+                          onChange={handleChange}
+                        />
+                        {errors.name && (
+                          <p className="text-red-500 text-xs mt-1">{errors.name}</p>
+                        )}
+                      </div>
+                    </motion.div>
+                    
+                    <motion.div className="mb-6" variants={formItemVariants}>
+                      <label className="block text-blue-100 text-sm font-medium mb-2" htmlFor="email">
+                        Email
+                      </label>
+                      <div className="relative">
+                        <input
+                          className={`w-full bg-black/30 border ${errors.email ? 'border-red-500' : 'border-blue-700'} rounded-lg p-3 text-white placeholder-blue-300/50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300`}
+                          type="email"
+                          id="email"
+                          name="email"
+                          placeholder="your.email@example.com"
+                          value={formState.email}
+                          onChange={handleChange}
+                        />
+                        {errors.email && (
+                          <p className="text-red-500 text-xs mt-1">{errors.email}</p>
+                        )}
+                      </div>
+                    </motion.div>
+                    
+                    <motion.div className="mb-6" variants={formItemVariants}>
+                      <label className="block text-blue-100 text-sm font-medium mb-2" htmlFor="interest">
+                        Interest
+                      </label>
+                      <div className="relative">
+                        <select
+                          className="w-full bg-black/30 border border-blue-700 rounded-lg p-3 text-white focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 appearance-none"
+                          id="interest"
+                          name="interest"
+                          value={formState.interest}
+                          onChange={handleChange}
+                        >
+                          <option value="" className="bg-gray-900">Select your interest</option>
+                          <option value="website" className="bg-gray-900">Website Generation</option>
+                          <option value="api" className="bg-gray-900">API Integration</option>
+                          <option value="custom" className="bg-gray-900">Custom Solution</option>
+                          <option value="other" className="bg-gray-900">Other</option>
+                        </select>
+                        <div className="absolute right-3 top-1/2 transform -translate-y-1/2 pointer-events-none">
+                          <ChevronRight className="text-blue-400 h-4 w-4 rotate-90" />
+                        </div>
+                      </div>
+                    </motion.div>
+                    
+                    <motion.div className="mb-8" variants={formItemVariants}>
+                      <label className="block text-blue-100 text-sm font-medium mb-2" htmlFor="message">
+                        Message
+                      </label>
+                      <textarea
+                        className="w-full bg-black/30 border border-blue-700 rounded-lg p-3 text-white h-32 placeholder-blue-300/50 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300 resize-none relative z-10"
+                        id="message"
+                        name="message"
+                        placeholder="Tell us about your project..."
+                        value={formState.message}
+                        onChange={handleChange}
+                        style={{ position: 'relative' }}
+                      ></textarea>
+                    </motion.div>
+                    
+                    <motion.div variants={formItemVariants}>
+                      <motion.button
+                        className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 px-6 rounded-lg flex items-center justify-center font-medium shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-all duration-300"
+                        type="submit"
+                        disabled={isSubmitting}
+                        whileHover={{ scale: 1.02 }}
+                        whileTap={{ scale: 0.98 }}
+                      >
+                        {isSubmitting ? (
+                          <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : (
+                          <>
+                            <span>Send Message</span>
+                            <Send className="ml-2 h-4 w-4" />
+                          </>
+                        )}
+                      </motion.button>
+                    </motion.div>
+                  </form>
+                ) : (
+                  <motion.div 
+                    className="flex flex-col items-center justify-center h-72"
+                    variants={successVariants}
+                    initial="hidden"
+                    animate="visible"
+                  >
+                    <div className="w-16 h-16 rounded-full bg-blue-500/20 flex items-center justify-center mb-6">
+                      <Check className="h-8 w-8 text-blue-500" />
+                    </div>
+                    <h3 className="text-2xl font-bold text-white mb-2">Message Sent!</h3>
+                    <p className="text-blue-200 text-center mb-6">
+                      Thanks for reaching out. We'll get back to you soon.
+                    </p>
+                    <motion.button
+                      className="text-blue-400 hover:text-blue-300 transition-colors"
+                      onClick={() => {
+                        setIsSubmitted(false);
+                        setFormState({
+                          name: '',
+                          email: '',
+                          interest: '',
+                          message: ''
+                        });
+                      }}
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                    >
+                      Send another message
+                    </motion.button>
+                  </motion.div>
+                )}
+              </motion.div>
+            </motion.div>
+          </div>
+        </div>
       </div>
     </section>
   );
