@@ -135,14 +135,14 @@ export default function Team() {
       name: "Anjaney Mitra",
       role: "Software Developer",
       bio: "Software developer pursuing MCA at Christ University. Passionate about creating innovative products and providing quality technical services. Focused on building solutions that make a difference.",
-      imageSrc: "/images/anj_profile_pic.png"
+      imageSrc: "/anj_profile_pic.png"  // Correct path for file in root of public directory
     },
     {
       id: 2,
       name: "Dave Vanlalchhuanga Sharma",
       role: "Software Developer",
       bio: "Dedicated software developer currently pursuing MCA at Christ University. Specializes in product development and technical service delivery. Committed to crafting efficient and user-friendly software solutions.",
-      imageSrc: "/images/dave_profile_pic.png"
+      imageSrc: "dave_profile_pic.png"  // This path is correct if file is in public/images
     }
   ];
 
