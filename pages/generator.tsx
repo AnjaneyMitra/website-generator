@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Loader2, Sparkles, User, Laptop, Smartphone } from 'lucide-react'; // Added new icons
+import { Loader2, Sparkles, User, Laptop, Smartphone, Code, ChevronRight } from 'lucide-react'; // Added more icons
 import { useRouter } from 'next/router';
 import { db } from '../firebaseConfig';
 import { collection, addDoc } from 'firebase/firestore';
@@ -7,7 +7,6 @@ import { useAuth } from '../contexts/AuthContext';
 import Link from 'next/link';
 import Sidebar from '../components/Sidebar';
 import Navbar from '../components/Navbar';
-import Chatbot from './Chatbot';
 import { Canvas } from '@react-three/fiber';
 import { OrbitControls, Stars, Float } from '@react-three/drei';
 import { motion } from 'framer-motion';
@@ -72,7 +71,16 @@ export default function Home() {
   const [preview, setPreview] = useState('');
   const [activeTab, setActiveTab] = useState<'preview' | 'code'>('preview');
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [previewMode, setPreviewMode] = useState<'wide' | 'mobile'>('wide'); // New state for preview mode
+  const [previewMode, setPreviewMode] = useState<'wide' | 'mobile'>('wide');
+  const [inputMode, setInputMode] = useState<'generate' | 'ask'>('generate');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([{
+    id: '1',
+    content: "👋 Hi there! I'm Brix.AI, your personal website creation assistant.\n\nI can help you create beautiful, functional websites in minutes. Just describe what you'd like to build, and I'll generate it for you.\n\nUse the 'Generate' mode to create websites, or switch to 'Ask' if you have questions about web development.",
+    role: 'assistant',
+    timestamp: new Date()
+  }]);
+  const [showPreview, setShowPreview] = useState(false);
+  const [generationSteps, setGenerationSteps] = useState<string[]>([]);
   
   const toggleSidebar = () => {
     setIsSidebarOpen(prev => !prev);
@@ -82,33 +90,219 @@ export default function Home() {
   const editedElements = useRef<{[key: string]: string}>({});
   const { currentUser, login, signInWithGoogle, logout, loading: authLoading } = useAuth();
   const router = useRouter();
+  const eventSource = useRef<EventSource | null>(null);
 
   const generateWebsite = async () => {
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:3001/generate', {
+      setGenerationSteps([]);
+      
+      // Close any existing EventSource connection
+      if (eventSource.current) {
+        eventSource.current.close();
+      }
+      
+      // Create a new EventSource connection for SSE
+      const sseUrl = 'http://localhost:3001/generate-sse';
+      console.log('Connecting to SSE endpoint:', sseUrl);
+      eventSource.current = new EventSource(sseUrl);
+      
+      // Add specific event handlers for connection open
+      eventSource.current.onopen = () => {
+        console.log('SSE connection opened successfully');
+      };
+      
+      eventSource.current.onmessage = (event) => {
+        console.log('SSE message received:', event.data);
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'step') {
+            setGenerationSteps(prev => [...prev, data.message]);
+          } else if (data.type === 'complete') {
+            setGeneratedCode(data.code);
+            setPreview(data.code);
+            setShowPreview(true);
+            
+            // Add assistant message to chat
+            const assistantMessage: ChatMessage = {
+              id: Date.now().toString() + '-response',
+              content: "I've generated your website based on your description. You can view it in the preview panel.",
+              role: 'assistant',
+              timestamp: new Date()
+            };
+            setChatMessages(prev => [...prev, assistantMessage]);
+            
+            // Close the connection
+            eventSource.current?.close();
+            eventSource.current = null;
+            setLoading(false);
+          } else if (data.type === 'connected') {
+            console.log('SSE connection established:', data.message);
+          }
+        } catch (parseError) {
+          console.error('Error parsing SSE message:', parseError, event.data);
+        }
+      };
+      
+      eventSource.current.onerror = (error) => {
+        console.error('EventSource error:', error);
+        // Check if the connection was refused or not found (404)
+        if (eventSource.current?.readyState === 2) { // CLOSED
+          console.error('SSE connection was closed or could not be established');
+        }
+        eventSource.current?.close();
+        eventSource.current = null;
+        setLoading(false);
+        
+        // Show error message in chat
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString() + '-error',
+          content: "Sorry, I couldn't generate the website. There was a problem connecting to the server. Please try again later.",
+          role: 'assistant',
+          timestamp: new Date()
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+      };
+      
+      // Send the prompt to the server
+      try {
+        const response = await fetch('http://localhost:3001/start-generation', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ prompt }),
+        });
+        
+        if (!response.ok) {
+          console.error(`HTTP error: ${response.status}`);
+          throw new Error(`Failed to start generation process. Status: ${response.status}`);
+        }
+        
+        // Clear the prompt to prepare for chat mode
+        setPrompt('');
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        // Close any existing connection if the fetch fails
+        if (eventSource.current) {
+          eventSource.current.close();
+          eventSource.current = null;
+        }
+        
+        setLoading(false);
+        
+        // Show error message in chat
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString() + '-error',
+          content: "Sorry, I couldn't connect to the generation service. Please try again later.",
+          role: 'assistant',
+          timestamp: new Date()
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+      }
+      
+    } catch (error) {
+      console.error('Error generating website:', error);
+      setLoading(false);
+      
+      if (eventSource.current) {
+        eventSource.current.close();
+        eventSource.current = null;
+      }
+      
+      // Show error message in chat
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString() + '-error',
+        content: "Sorry, I couldn't generate the website. Please try again later.",
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    }
+  };
+
+  const sendChatMessage = async () => {
+    if (!prompt.trim()) return;
+    
+    // Add user message to chat
+    const userMessage: ChatMessage = {
+      id: Date.now().toString(),
+      content: prompt,
+      role: 'user',
+      timestamp: new Date()
+    };
+    setChatMessages(prev => [...prev, userMessage]);
+    
+    // Clear input
+    setPrompt('');
+    setLoading(true);
+    
+    try {
+      // Call the chatbot API
+      console.log('Sending chat message to server');
+      const response = await fetch('http://localhost:3001/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ prompt }),
+        body: JSON.stringify({ message: prompt }),
       });
       
       if (!response.ok) {
-        throw new Error(`HTTP error! Status: ${response.status}`);
+        console.error(`Chat API HTTP error: ${response.status}`);
+        throw new Error(`Failed to get a response. Status: ${response.status}`);
       }
       
       const data = await response.json();
-      setGeneratedCode(data.code);
-      setPreview(data.code);
-      // Clear any previously edited elements
-      editedElements.current = {};
+      console.log('Chat response received:', data);
+      
+      // Check if data contains a response property
+      if (!data || typeof data.response !== 'string') {
+        console.error('Invalid response format:', data);
+        throw new Error('Received an invalid response format from the server');
+      }
+      
+      const assistantMessage: ChatMessage = {
+        id: Date.now().toString() + '-response',
+        content: data.response, // Use the response field from the server
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
-      console.error('Error generating website:', error);
-      // Show an error message to the user
-      alert('Failed to generate website. Please try again later.');
+      console.error('Error sending chat message:', error);
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString() + '-error',
+        content: "Sorry, I couldn't process your message. Please try again later.",
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInputSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!prompt.trim()) return;
+    
+    if (inputMode === 'generate') {
+      // Add user message
+      const userMessage: ChatMessage = {
+        id: Date.now().toString(),
+        content: prompt,
+        role: 'user',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, userMessage]);
+      
+      // Generate website
+      generateWebsite();
+    } else {
+      // Send chat message
+      sendChatMessage();
     }
   };
 
@@ -371,6 +565,10 @@ export default function Home() {
     }
   }
 
+  const togglePreview = () => {
+    setShowPreview(prev => !prev);
+  };
+
   // If authentication is loading, show a loading spinner
   if (authLoading) {
     return (
@@ -490,7 +688,7 @@ export default function Home() {
 
   // Otherwise, show the generator UI with X.AI-inspired style
   return (
-    <div className="min-h-screen bg-black text-white font-sans">
+    <div className="min-h-screen bg-gradient-to-br from-zinc-900 via-zinc-950 to-black text-white font-sans">
       <div className="flex">
         {/* Sidebar with updated styling */}
         <div className={`fixed inset-y-0 left-0 z-20 w-72 bg-zinc-900 border-r border-zinc-800 transform transition-transform duration-300 ease-in-out ${
@@ -500,236 +698,389 @@ export default function Home() {
         </div>
         
         <main className={`flex-1 transition-all duration-300 ${isSidebarOpen ? 'ml-72' : 'ml-0'}`}>
-          <div className="min-h-screen relative">
-            {/* 3D Background */}
-            <div className="absolute inset-0 z-0 opacity-70">
-              <Canvas>
-                <XAIScene />
-              </Canvas>
+          <div className="min-h-screen relative flex flex-col">
+            {/* Static Gradient Background with accent */}
+            <div className="fixed inset-0 bg-gradient-to-br from-zinc-900 via-zinc-950 to-black z-0">
+              <div className="absolute top-0 left-0 right-0 h-1 bg-blue-600"></div>
+              <div className="absolute top-0 left-0 w-1 bottom-0 bg-blue-600"></div>
+              <div className="absolute bottom-0 left-0 right-0 h-1 bg-blue-600"></div>
+              <div className="absolute top-0 right-0 w-1 bottom-0 bg-blue-600"></div>
+              
+              {/* Decorative accent */}
+              <div className="absolute top-[10%] left-[20%] w-64 h-64 bg-blue-600/5 rounded-full blur-3xl"></div>
+              <div className="absolute bottom-[20%] right-[10%] w-96 h-96 bg-blue-600/5 rounded-full blur-3xl"></div>
             </div>
 
-            <div className="relative z-10 max-w-7xl mx-auto p-8">
-              {/* Header with Link */}
-              <div className="text-center space-y-6 py-16">
-                <motion.div 
-                  className="inline-block relative"
-                  whileHover={{ scale: 1.05 }}
-                  transition={{ duration: 0.3 }}
+            {/* Header bar with logo on left and account on right */}
+            <div className="sticky top-0 z-50 w-full bg-zinc-900/60 backdrop-blur-sm py-3 px-4 sm:px-8 flex justify-between items-center border-b border-zinc-800/60">
+              <div className="flex items-center">
+                <button 
+                  onClick={toggleSidebar}
+                  className="text-gray-400 hover:text-white transition-colors mr-4 md:hidden"
                 >
-                  <Link href={"/about"}>
-                    <h1 className="text-7xl sm:text-8xl md:text-9xl font-bold tracking-tight mb-2">
-                      brix<span className="text-blue-500">.</span>ai
-                    </h1>
-                  </Link>
-                </motion.div>
-                <div className="h-px w-24 bg-gradient-to-r from-transparent via-blue-500 to-transparent mx-auto my-8"></div>
-                <p className="text-xl md:text-2xl text-gray-400 max-w-2xl text-center font-light mx-auto">
-                  Transform your ideas into production-ready websites with AI-powered precision
-                </p>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-6 h-6">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                  </svg>
+                </button>
+                <Link href={"/about"} className="flex items-center">
+                  <h1 className="text-xl font-bold tracking-tight flex items-center">
+                    brix<span className="text-blue-500">.</span><span className="text-blue-500 ml-1">ai</span>
+                  </h1>
+                </Link>
               </div>
-
-              {/* User account section */}
-              <div className="absolute top-4 right-4 flex items-center space-x-4">
-                <Link href="/account" className="group flex items-center border-b border-transparent hover:border-white pb-1 transition-colors">
+              
+              <div className="flex items-center">
+                <Link href="/account" className="group flex items-center border-b border-transparent hover:border-white pb-1 transition-colors mr-4">
                   <User className="w-4 h-4 mr-2" />
-                  <span>Account</span>
+                  <span className="hidden sm:inline">Account</span>
                 </Link>
                 <button 
                   onClick={logout} 
-                  className="inline-block bg-red-600 hover:bg-red-700 text-white px-4 py-2 text-sm font-medium transition-colors duration-300"
+                  className="inline-block bg-red-600 hover:bg-red-700 text-white px-3 py-1 sm:px-4 sm:py-2 text-sm font-medium transition-colors duration-300 rounded-md"
                 >
-                  Logout
+                  <span className="hidden sm:inline">Logout</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 sm:hidden">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                  </svg>
                 </button>
               </div>
+            </div>
 
-              <div className="container mx-auto p-4">
-                <motion.div 
-                  className="border border-zinc-800 p-8 hover:border-blue-500 transition-colors duration-300 bg-black/60 backdrop-blur-sm rounded-lg"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.5 }}
-                >
-                  {/* Generator interface */}
-                  <div className="mb-8">
-                    <label htmlFor="prompt" className="block text-2xl font-medium text-white mb-4">
-                      Describe your website
-                    </label>
-                    <div className="flex gap-4">
-                      <textarea
-                        id="prompt"
-                        className="flex-1 p-4 bg-zinc-800 border border-zinc-700 text-white rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 hover:border-zinc-600 resize-none"
-                        placeholder="Describe the website you want to generate..."
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        rows={3}
-                      />
+            {/* Main content area */}
+            <div className="flex-1 relative z-10 flex">
+              {/* Chat interface - takes the full width or left side based on preview state */}
+              <div className={`flex-1 transition-all duration-500 flex flex-col ${
+                showPreview ? 'max-w-[50%]' : 'max-w-full'
+              }`}>
+                {/* Chat content container - centered full height */}
+                <div className="flex-1 flex flex-col items-center justify-center">
+                  <div className={`w-full max-w-2xl px-4 ${
+                    chatMessages.length > 1 ? 'py-4' : 'flex flex-col items-center justify-center min-h-[80vh]'
+                  }`}>
+                    {/* Welcome message when no chat exists */}
+                    {chatMessages.length === 1 && (
+                      <div className="text-center mb-8">
+                        <h2 className="text-3xl font-bold mb-4">Welcome to Brix.AI</h2>
+                        <p className="text-gray-400 max-w-lg mx-auto">
+                          Your personal website builder powered by AI. Describe the website you want to create, 
+                          or ask questions about web development.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Chat Messages Container */}
+                    <div className="space-y-6 mb-6">
+                      {chatMessages.slice(chatMessages.length > 1 ? 1 : 0).map((msg, index) => (
+                        <div 
+                          key={msg.id}
+                          className="w-full"
+                        >
+                          {msg.role === 'user' ? (
+                            <div className="flex items-start mb-1.5">
+                              <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center mr-3 mt-0.5">
+                                <User className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-white whitespace-pre-line">{msg.content}</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="flex items-start mb-1.5">
+                              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center mr-3 mt-0.5">
+                                <Sparkles className="h-5 w-5 text-white" />
+                              </div>
+                              <div className="flex-1">
+                                <p className="text-white whitespace-pre-line">{msg.content}</p>
+                                
+                                {/* Show generation steps if this is the loading message and we have steps */}
+                                {loading && 
+                                 index === chatMessages.length - 1 && 
+                                 inputMode === 'generate' && 
+                                 generationSteps.length > 0 && (
+                                  <div className="mt-3 text-sm text-gray-400 border-l-2 border-gray-700 pl-3 ml-1">
+                                    {generationSteps.map((step, i) => (
+                                      <div key={i} className="mb-1.5">
+                                        {step}
+                                      </div>
+                                    ))}
+                                  </div>
+                                )}
+                                
+                                {/* Display the Preview button after generation is complete */}
+                                {!loading && 
+                                 generatedCode && 
+                                 index === chatMessages.length - 1 && 
+                                 msg.role === 'assistant' && (
+                                  <div className="mt-3">
+                                    <button 
+                                      onClick={togglePreview} 
+                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-white text-sm transition-colors"
+                                    >
+                                      {showPreview ? 'Collapse' : 'Preview'}
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      
+                      {/* Loading indicator */}
+                      {loading && (
+                        <div className="flex items-start mb-1.5">
+                          <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center mr-3 mt-0.5">
+                            <Sparkles className="h-5 w-5 text-white" />
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex items-center">
+                              <span className="mr-2">
+                                {inputMode === 'generate' ? 'Generating website' : 'Thinking'}
+                              </span>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                            </div>
+                            
+                            {/* Show generation steps if we have them */}
+                            {inputMode === 'generate' && generationSteps.length > 0 && (
+                              <div className="mt-3 text-sm text-gray-400 border-l-2 border-gray-700 pl-3 ml-1">
+                                {generationSteps.map((step, i) => (
+                                  <div key={i} className="mb-1.5">
+                                    {step}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Input Area with mode toggle - always centered at bottom */}
+                    <div className="w-full">
+                      {/* Mode toggle */}
+                      <div className="flex justify-center mb-3">
+                        <div className="bg-zinc-800 rounded-full p-1 flex shadow-md">
+                          <button
+                            onClick={() => setInputMode('generate')}
+                            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center ${
+                              inputMode === 'generate'
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:text-white'
+                            }`}
+                          >
+                            <Sparkles className="w-4 h-4 mr-1.5" />
+                            Generate
+                          </button>
+                          <button
+                            onClick={() => setInputMode('ask')}
+                            className={`px-4 py-1.5 rounded-full text-sm font-medium transition-colors flex items-center ${
+                              inputMode === 'ask'
+                                ? 'bg-blue-600 text-white'
+                                : 'text-gray-400 hover:text-white'
+                            }`}
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-4 h-4 mr-1.5">
+                              <path d="M3.478 2.404a.75.75 0 0 0-.926.941l2.432 7.905H13.5a.75.75 0 0 1 0 1.5H4.984l-2.432 7.905a.75.75 0 0 0 .926.94 60.519 60.519 0 0 0 18.445-8.986.75.75 0 0 0 0-1.218A60.517 60.517 0 0 0 3.478 2.404Z" />
+                            </svg>
+                            Ask
+                          </button>
+                        </div>
+                      </div>
+                      
+                      <form 
+                        onSubmit={handleInputSubmit}
+                        className="flex gap-2 relative"
+                      >
+                        <div className="relative flex-1 bg-zinc-800 hover:bg-zinc-700/80 focus-within:bg-zinc-700 transition-colors duration-200 rounded-xl border border-zinc-700">
+                          <textarea
+                            className="w-full bg-transparent text-white p-4 pr-12 outline-none resize-none max-h-32 overflow-auto"
+                            placeholder={inputMode === 'generate' 
+                              ? "Describe the website you want to create..." 
+                              : "Ask me anything about web development..."
+                            }
+                            value={prompt}
+                            onChange={(e) => setPrompt(e.target.value)}
+                            rows={1}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                if (prompt.trim()) {
+                                  handleInputSubmit(e);
+                                }
+                              }
+                            }}
+                          />
+                          <button
+                            type="submit"
+                            disabled={loading || !prompt.trim()}
+                            className={`absolute right-2 bottom-2 p-2 rounded-lg transition-all duration-200 ${
+                              loading || !prompt.trim() 
+                                ? 'text-gray-500 cursor-not-allowed' 
+                                : 'text-blue-400 hover:text-blue-300 hover:bg-blue-500/20'
+                            }`}
+                          >
+                            {loading ? (
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                            ) : (
+                              <ChevronRight className="w-6 h-6" />
+                            )}
+                          </button>
+                        </div>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Preview Panel - Right Side */}
+              {showPreview && generatedCode && (
+                <div className="w-1/2 border-l border-zinc-800 bg-zinc-900/60 backdrop-blur-sm flex flex-col">
+                  <div className="flex justify-between items-center border-b border-zinc-800 p-3">
+                    <div className="flex space-x-2">
                       <button
-                        onClick={generateWebsite}
-                        disabled={loading || !prompt.trim()}
-                        className={`px-8 py-4 text-lg font-medium flex items-center transition-all duration-200 ${
-                          loading || !prompt.trim() 
-                            ? 'bg-gray-600 text-gray-400 cursor-not-allowed' 
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        onClick={() => setActiveTab('preview')}
+                        className={`py-1.5 px-3 rounded-md text-sm font-medium flex items-center ${
+                          activeTab === 'preview'
+                            ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                            : 'text-gray-400 hover:bg-zinc-800'
                         }`}
                       >
-                        {loading ? (
-                          <Loader2 className="w-5 h-5 animate-spin mr-2" />
-                        ) : (
-                          <Sparkles className="w-5 h-5 mr-2" />
-                        )}
-                        {loading ? 'Generating...' : 'Generate'}
+                        <Laptop className="w-4 h-4 mr-1.5" />
+                        Preview
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('code')}
+                        className={`py-1.5 px-3 rounded-md text-sm font-medium flex items-center ${
+                          activeTab === 'code'
+                            ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
+                            : 'text-gray-400 hover:bg-zinc-800'
+                        }`}
+                      >
+                        <Code className="w-4 h-4 mr-1.5" />
+                        Code
+                      </button>
+                    </div>
+
+                    {/* View controls */}
+                    <div className="flex items-center space-x-2">
+                      {activeTab === 'preview' && (
+                        <div className="flex items-center space-x-2 bg-zinc-800 rounded-md p-1 mr-2">
+                          <button
+                            onClick={() => setPreviewMode('wide')}
+                            className={`p-1.5 rounded flex items-center text-xs ${
+                              previewMode === 'wide' 
+                                ? 'bg-blue-500/20 text-blue-400' 
+                                : 'text-gray-400 hover:bg-zinc-700'
+                            }`}
+                            title="Desktop/Laptop View"
+                          >
+                            <Laptop className="w-3.5 h-3.5 mr-1" />
+                            <span className="hidden sm:inline">Wide</span>
+                          </button>
+                          <button
+                            onClick={() => setPreviewMode('mobile')}
+                            className={`p-1.5 rounded flex items-center text-xs ${
+                              previewMode === 'mobile' 
+                                ? 'bg-blue-500/20 text-blue-400' 
+                                : 'text-gray-400 hover:bg-zinc-700'
+                            }`}
+                            title="Mobile View"
+                          >
+                            <Smartphone className="w-3.5 h-3.5 mr-1" />
+                            <span className="hidden sm:inline">Mobile</span>
+                          </button>
+                        </div>
+                      )}
+                      
+                      <button
+                        onClick={togglePreview}
+                        className="p-1.5 text-gray-400 hover:text-white hover:bg-zinc-800 rounded-md transition-colors"
+                        title="Close Preview"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                       </button>
                     </div>
                   </div>
 
-                  {/* Preview/Code tabs and content section */}
-                  {generatedCode && (
-                    <motion.div 
-                      className="mt-10"
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      transition={{ duration: 0.5, delay: 0.2 }}
-                    >
-                      <div className="flex justify-between items-center border-b border-zinc-800 mb-6">
-                        <nav className="-mb-px flex space-x-8">
-                          <button
-                            onClick={() => setActiveTab('preview')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === 'preview'
-                                ? 'border-blue-500 text-blue-500'
-                                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
-                            }`}
-                          >
-                            Preview
-                          </button>
-                          <button
-                            onClick={() => setActiveTab('code')}
-                            className={`py-2 px-1 border-b-2 font-medium text-sm ${
-                              activeTab === 'code'
-                                ? 'border-blue-500 text-blue-500'
-                                : 'border-transparent text-gray-400 hover:text-gray-300 hover:border-gray-700'
-                            }`}
-                          >
-                            Code
-                          </button>
-                        </nav>
-
-                        {/* Device preview switcher */}
-                        {activeTab === 'preview' && (
-                          <div className="flex items-center space-x-2 mb-2 bg-zinc-800 rounded-md p-1">
-                            <button
-                              onClick={() => setPreviewMode('wide')}
-                              className={`p-2 rounded flex items-center text-xs ${
-                                previewMode === 'wide' 
-                                  ? 'bg-blue-500/20 text-blue-400' 
-                                  : 'text-gray-400 hover:bg-zinc-700'
-                              }`}
-                              title="Desktop/Laptop View"
-                            >
-                              <Laptop className="w-4 h-4 mr-1" />
-                              <span>Wide</span>
-                            </button>
-                            <button
-                              onClick={() => setPreviewMode('mobile')}
-                              className={`p-2 rounded flex items-center text-xs ${
-                                previewMode === 'mobile' 
-                                  ? 'bg-blue-500/20 text-blue-400' 
-                                  : 'text-gray-400 hover:bg-zinc-700'
-                              }`}
-                              title="Mobile View"
-                            >
-                              <Smartphone className="w-4 h-4 mr-1" />
-                              <span>Mobile</span>
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      {activeTab === 'preview' ? (
-                        <div className={`flex justify-center ${previewMode === 'mobile' ? 'bg-zinc-800/50 py-8 rounded-lg' : ''}`}>
-                          <div 
-                            className={
+                  {/* Preview/Code content */}
+                  <div className="flex-1 overflow-hidden">
+                    {activeTab === 'preview' ? (
+                      <div className={`h-full flex justify-center items-center ${previewMode === 'mobile' ? 'bg-zinc-800/30 p-4' : ''}`}>
+                        <div 
+                          className={
+                            previewMode === 'mobile'
+                              ? 'w-[375px] h-[667px] relative border-8 border-zinc-700 rounded-[36px] overflow-hidden shadow-lg'
+                              : 'w-full h-full'
+                          }
+                        >
+                          {previewMode === 'mobile' && (
+                            <>
+                              {/* Notch for mobile view */}
+                              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-24 h-6 bg-zinc-700 rounded-b-lg z-10"></div>
+                              {/* Home indicator for mobile view */}
+                              <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-zinc-600 rounded-full z-10"></div>
+                            </>
+                          )}
+                          <iframe
+                            ref={iframeRef}
+                            srcDoc={preview}
+                            className={`border-0 bg-white ${
                               previewMode === 'mobile'
-                                ? 'w-[375px] h-[667px] relative border-8 border-zinc-700 rounded-[36px] overflow-hidden shadow-lg'
-                                : 'w-full'
-                            }
-                          >
-                            {previewMode === 'mobile' && (
-                              <>
-                                {/* Notch for mobile view */}
-                                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-24 h-6 bg-zinc-700 rounded-b-lg z-10"></div>
-                                {/* Home indicator for mobile view */}
-                                <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-zinc-600 rounded-full z-10"></div>
-                              </>
-                            )}
-                            <iframe
-                              ref={iframeRef}
-                              srcDoc={preview}
-                              className={`border-0 bg-white ${
-                                previewMode === 'mobile'
-                                  ? 'w-full h-full'
-                                  : 'w-full h-[600px] border border-zinc-800 rounded-lg'
-                              }`}
-                              sandbox="allow-same-origin allow-scripts"
-                              title="Website Preview"
-                              style={{
-                                // Add additional styles for mobile version to properly scale content
-                                ...(previewMode === 'mobile' ? { 
-                                  width: '375px', 
-                                  height: '667px', 
-                                } : {})
-                              }}
-                            />
-                          </div>
+                                ? 'w-full h-full'
+                                : 'w-full h-full border border-zinc-800'
+                            }`}
+                            sandbox="allow-same-origin allow-scripts"
+                            title="Website Preview"
+                          />
                         </div>
-                      ) : (
-                        <div className="relative">
-                          <pre className="bg-zinc-900 text-gray-300 p-4 rounded-lg overflow-x-auto border border-zinc-800">
+                      </div>
+                    ) : (
+                      <div className="h-full relative">
+                        <div className="bg-zinc-900 text-gray-300 h-full overflow-auto border border-zinc-800 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
+                          <pre className="p-4">
                             <code>{generatedCode}</code>
                           </pre>
-                          <button
-                            onClick={downloadCode}
-                            className="absolute top-2 right-2 px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200 text-sm"
-                          >
-                            Download
-                          </button>
                         </div>
-                      )}
+                        <button
+                          onClick={downloadCode}
+                          className="absolute top-3 right-3 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200 text-xs rounded-md"
+                        >
+                          Download
+                        </button>
+                      </div>
+                    )}
+                  </div>
 
-                      {activeTab === 'preview' && generatedCode && (
-                        <div className="mt-6 flex justify-end space-x-4">
-                          <button
-                            onClick={toggleEditMode}
-                            className={`px-8 py-4 text-lg font-medium transition-colors duration-300 ${
-                              editMode 
-                                ? 'bg-green-600 hover:bg-green-700 text-white'
-                                : 'bg-blue-600 hover:bg-blue-700 text-white'
-                            }`}
-                          >
-                            {editMode ? 'Save & Exit Edit Mode' : 'Enter Edit Mode'}
-                          </button>
-                          {unsavedChanges && (
-                            <button
-                              onClick={applyAllEdits}
-                              className="px-8 py-4 text-lg font-medium bg-yellow-600 hover:bg-yellow-700 text-white transition-colors duration-300"
-                            >
-                              Apply Changes
-                            </button>
-                          )}
-                        </div>
+                  {/* Edit mode controls */}
+                  {activeTab === 'preview' && (
+                    <div className="p-3 border-t border-zinc-800 flex justify-end space-x-3">
+                      <button
+                        onClick={toggleEditMode}
+                        className={`px-3 py-1.5 text-sm font-medium transition-colors duration-300 rounded-md flex items-center ${
+                          editMode 
+                            ? 'bg-green-600 hover:bg-green-700 text-white'
+                            : 'bg-blue-600 hover:bg-blue-700 text-white'
+                        }`}
+                      >
+                        {editMode ? 'Save & Exit' : 'Edit Content'}
+                      </button>
+                      {unsavedChanges && (
+                        <button
+                          onClick={applyAllEdits}
+                          className="px-3 py-1.5 text-sm font-medium bg-yellow-600 hover:bg-yellow-700 text-white transition-colors duration-300 rounded-md flex items-center"
+                        >
+                          Apply Changes
+                        </button>
                       )}
-                    </motion.div>
+                    </div>
                   )}
-                </motion.div>
-              </div>
+                </div>
+              )}
             </div>
           </div>
         </main>
-      </div>
-      
-      {/* Chatbot component */}
-      <div className="fixed bottom-4 right-4 z-50">
-        <Chatbot />
       </div>
     </div>
   );

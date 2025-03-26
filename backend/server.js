@@ -12,9 +12,341 @@ const corsOptions = {
   origin: 'http://localhost:3000',
   methods: ['POST', 'GET', 'OPTIONS'],
   allowedHeaders: ['Content-Type'],
+  credentials: false
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Add a middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
+});
+
+// Store active SSE connections
+const connections = new Map();
+
+// SSE endpoint for real-time progress updates during website generation
+app.get('/generate-sse', (req, res) => {
+  const clientId = Date.now();
+  
+  console.log(`SSE connection request received from client ${clientId}`);
+  
+  // Set headers for SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*'
+  });
+  
+  // Send a heartbeat immediately to keep the connection alive
+  res.write(': heartbeat\n\n');
+  
+  // Send a connection established message
+  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established' })}\n\n`);
+  
+  // Store the connection
+  connections.set(clientId, res);
+  
+  // Set up a heartbeat to keep the connection alive
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n');
+    } catch (error) {
+      console.error(`Error sending heartbeat to client ${clientId}:`, error);
+      clearInterval(heartbeat);
+      connections.delete(clientId);
+    }
+  }, 30000); // Send a heartbeat every 30 seconds
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    connections.delete(clientId);
+    console.log(`Client ${clientId} disconnected from SSE`);
+  });
+  
+  console.log(`Client ${clientId} connected to SSE - connection active`);
+});
+
+// Endpoint to check server status
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'online',
+    message: 'Brix.AI server is running',
+    endpoints: [
+      '/generate-sse - Server-Sent Events endpoint',
+      '/start-generation - Generate website endpoint',
+      '/chat - Chat endpoint',
+      '/test - Test endpoint',
+      '/color-schemes - Get color schemes',
+      '/templates - Get templates'
+    ]
+  });
+});
+
+// Start the website generation process
+app.post('/start-generation', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    
+    console.log(`Starting website generation with prompt: "${prompt.substring(0, 30)}..."`);
+    
+    // Acknowledge the request immediately
+    res.status(200).json({ message: 'Generation started' });
+    
+    // Start the generation process in the background
+    generateWebsite(prompt);
+  } catch (error) {
+    console.error('Error starting generation:', error);
+    res.status(500).json({ error: 'Failed to start generation', details: error.message });
+  }
+});
+
+// Function to generate website with progress updates via SSE
+async function generateWebsite(prompt, websiteType = 'business', colorScheme = 'modern', style = 'minimal', brandTone = 'professional') {
+  try {
+    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    const detectedTheme = analyzePromptForTheme(prompt);
+    const colors = getThemeColors(prompt);
+    
+    // Store the original prompt for consistent reference
+    const originalPrompt = prompt;
+
+    // Send progress update to all clients
+    sendToAllClients({ type: 'step', message: "Starting website generation..." });
+
+    // STEP 1: Generate content structure and raw HTML
+    sendToAllClients({ type: 'step', message: "Step 1: Generating content structure and HTML..." });
+    
+    const contentPrompt = `
+Generate a structured HTML website based on this request:
+"${originalPrompt}"
+
+Requirements:
+1. Create a clean, semantic HTML5 structure for a ${websiteType} website.
+2. Include all necessary sections for this type of website.
+3. Generate meaningful, contextual content (not lorem ipsum) that matches the request.
+4. Include a navigation menu with links to each section.
+5. Use proper HTML5 semantic elements (header, footer, section, article, etc).
+6. Structure the document properly with appropriate heading hierarchy.
+7. Do not include any styling or CSS classes yet.
+8. Include meta information and SEO elements.
+9. For images, use placeholder elements with descriptive alt text.
+10. Include necessary textual content for all sections.
+11. Create a clear content hierarchy.
+12. Include forms, buttons, and interactive elements as needed.
+13. Return ONLY valid HTML, no markdown formatting or explanations.
+
+Return the response as a JSON object with this structure:
+{
+  "html": "the complete HTML structure without styling",
+  "sections": [
+    {
+      "title": "section name",
+      "content": "section content summary",
+      "designNotes": "brief notes about what this section should look like"
+    }
+  ],
+  "globalMeta": {
+    "title": "site title",
+    "description": "site description"
+  }
+}`;
+
+    const contentResult = await model.generateContent(contentPrompt);
+    const contentResponse = await contentResult.response;
+    let generatedContent = ensureJsonResponse(contentResponse.text());
+    
+    // Ensure we only have clean HTML in the generatedContent.html field
+    if (generatedContent.html) {
+      generatedContent.html = cleanHtmlContent(generatedContent.html);
+    }
+    
+    sendToAllClients({ type: 'step', message: "Content structure generated successfully" });
+
+    // STEP 2: Style the HTML with Tailwind CSS
+    sendToAllClients({ type: 'step', message: "Step 2: Applying Tailwind CSS styling..." });
+    
+    const stylingPrompt = `
+You are an expert UI/UX designer specializing in Tailwind CSS.
+
+Take this HTML structure and apply Tailwind CSS classes to create a beautiful, modern website that fulfills this exact request:
+"${originalPrompt}"
+
+HTML to style:
+${JSON.stringify(generatedContent.html)}
+
+Style Requirements:
+1. Use Tailwind CSS classes extensively for all styling.
+2. Apply a color scheme that matches the ${detectedTheme} theme.
+3. Make the design fully responsive using Tailwind's responsive prefixes (sm:, md:, lg:, xl:).
+4. Create a modern, clean aesthetic with proper spacing, typography, and visual hierarchy.
+5. Apply hover effects and transitions to interactive elements.
+6. Use a consistent color palette throughout.
+7. Implement a responsive navigation with mobile menu.
+8. DO NOT change the HTML structure or content - only add Tailwind classes.
+9. Ensure sufficient contrast between text and backgrounds.
+10. Optimize readability with appropriate font sizes and line heights.
+11. Apply proper padding and margins for visual breathing room.
+12. Create distinctive sections with varying background treatments.
+13. Return ONLY the complete HTML with Tailwind classes, no comments, explanations, or markdown.
+
+Return ONLY the complete HTML with Tailwind CSS classes added. Do not include any explanation or markdown formatting.`;
+
+    const stylingResult = await model.generateContent(stylingPrompt);
+    const stylingResponse = await stylingResult.response;
+    const styledHTML = cleanHtmlContent(stylingResponse.text());
+    
+    sendToAllClients({ type: 'step', message: "Tailwind styling applied successfully" });
+
+    // STEP 3: Enhance with JavaScript animations and interactivity
+    sendToAllClients({ type: 'step', message: "Step 3: Adding JavaScript animations and interactivity..." });
+    
+    const enhancementPrompt = `
+You are a front-end developer specializing in creating beautiful, interactive web experiences.
+
+Take this Tailwind-styled HTML and enhance it with JavaScript animations and interactivity to fulfill this exact request:
+"${originalPrompt}"
+
+HTML to enhance:
+${styledHTML}
+
+Enhancement Requirements:
+1. Add modern, subtle animations to improve user experience.
+2. Implement scroll-triggered animations using Intersection Observer or GSAP.
+3. Add hover effects and transitions for interactive elements.
+4. Create a smooth-scrolling navigation system.
+5. Implement mobile menu toggle functionality.
+6. Add form validation if forms are present.
+7. Create subtle parallax effects or background animations if appropriate.
+8. Implement any carousels or sliders if mentioned in the design.
+9. Include loading animations or transitions between states.
+10. Add any typing effects to headings if appropriate.
+11. Optimize all animations for performance.
+12. DO NOT change the existing Tailwind styling or HTML structure - only add JavaScript and necessary attributes.
+13. Return ONLY the complete HTML with added JavaScript, no explanations or markdown.
+
+Return the complete HTML with all JavaScript included. Ensure all animations are tasteful and enhance rather than distract from the content.`;
+
+    const enhancementResult = await model.generateContent(enhancementPrompt);
+    const enhancementResponse = await enhancementResult.response;
+    const enhancedHTML = cleanHtmlContent(enhancementResponse.text());
+    
+    sendToAllClients({ type: 'step', message: "JavaScript enhancements added successfully" });
+
+    // Process the final code with required CDN links and configurations
+    const processedCode = enhancedHTML
+      .replace(/placehold\.co/g, 'picsum.photos')
+      .replace(/<head>/, `
+        <head>
+          <!-- Generated by Brix.AI -->
+          <meta charset="UTF-8">
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <script src="https://cdn.tailwindcss.com"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+          <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
+          <script>
+            tailwind.config = {
+              theme: {
+                extend: {
+                  colors: ${JSON.stringify(colors)},
+                  animation: {
+                    'float': 'float 3s ease-in-out infinite',
+                    'slide-up': 'slideUp 0.5s ease-out',
+                    'fade-in': 'fadeIn 0.5s ease-out',
+                    'scale-in': 'scaleIn 0.5s ease-out'
+                  },
+                  keyframes: {
+                    float: {
+                      '0%, 100%': { transform: 'translateY(0)' },
+                      '50%': { transform: 'translateY(-20px)' }
+                    },
+                    slideUp: {
+                      '0%': { transform: 'translateY(100px)', opacity: '0' },
+                      '100%': { transform: 'translateY(0)', opacity: '1' }
+                    },
+                    fadeIn: {
+                      '0%': { opacity: '0' },
+                      '100%': { opacity: '1' }
+                    },
+                    scaleIn: {
+                      '0%': { transform: 'scale(0.9)', opacity: '0' },
+                      '100%': { transform: 'scale(1)', opacity: '1' }
+                    }
+                  }
+                }
+              }
+            }
+          </script>
+      `);
+
+    sendToAllClients({ type: 'step', message: "Website generation completed successfully" });
+
+    // Send the final code to all connected clients
+    sendToAllClients({ 
+      type: 'complete', 
+      code: processedCode 
+    });
+  } catch (error) {
+    console.error('Error during website generation:', error);
+    sendToAllClients({ 
+      type: 'error', 
+      message: `Error: ${error.message}`
+    });
+  }
+}
+
+// Helper function to send updates to all connected clients
+function sendToAllClients(data) {
+  console.log(`Sending to ${connections.size} clients: ${data.type}`);
+  if (connections.size === 0) {
+    console.warn('No active SSE connections to send data to');
+  }
+  
+  connections.forEach((client, clientId) => {
+    try {
+      client.write(`data: ${JSON.stringify(data)}\n\n`);
+    } catch (error) {
+      console.error(`Error sending data to client ${clientId}:`, error);
+      // Clean up broken connections
+      connections.delete(clientId);
+    }
+  });
+}
+
+// Helper function to clean HTML content from AI responses
+function cleanHtmlContent(content) {
+  // Remove markdown code blocks
+  let cleanedContent = content.replace(/```html\n?|\n?```/g, '').trim();
+  
+  // Remove any comments or explanations before or after the HTML
+  cleanedContent = cleanedContent.replace(/^\s*(?:Here's|The complete HTML|I've enhanced|This HTML|This is the|Here is the)[^<]*</i, '<');
+  
+  // Remove any trailing explanations after the HTML
+  cleanedContent = cleanedContent.replace(/<\/html>\s*[\s\S]*/i, '</html>');
+  
+  // Remove any lines that start with non-HTML characters (likely explanations)
+  const lines = cleanedContent.split('\n');
+  const htmlLines = lines.filter(line => {
+    const trimmedLine = line.trim();
+    return trimmedLine === '' || 
+           trimmedLine.startsWith('<') || 
+           trimmedLine.startsWith('//') || 
+           trimmedLine.startsWith('/*') || 
+           trimmedLine.includes('*/') ||
+           trimmedLine.startsWith('}') ||
+           (trimmedLine.includes('=') && trimmedLine.includes(';'));
+  });
+  
+  return htmlLines.join('\n');
+}
 
 // Tailwind-specific color schemes
 const themeKeywords = {
@@ -171,237 +503,6 @@ const ensureJsonResponse = (text) => {
   }
 };
 
-app.post('/generate', async (req, res) => {
-  try {
-    const { 
-      prompt,
-      websiteType = 'business',
-      colorScheme = 'modern',
-      style = 'minimal',
-      brandTone = 'professional'
-    } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required' });
-    }
-
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    const detectedTheme = analyzePromptForTheme(prompt);
-    const colors = getThemeColors(prompt);
-    
-    // Store the original prompt for consistent reference
-    const originalPrompt = prompt;
-
-    // STEP 1: Generate content structure and raw HTML
-    console.log("STEP 1: Generating content structure and HTML...");
-    
-    const contentPrompt = `
-Generate a structured HTML website based on this request:
-"${originalPrompt}"
-
-Requirements:
-1. Create a clean, semantic HTML5 structure for a ${websiteType} website.
-2. Include all necessary sections for this type of website.
-3. Generate meaningful, contextual content (not lorem ipsum) that matches the request.
-4. Include a navigation menu with links to each section.
-5. Use proper HTML5 semantic elements (header, footer, section, article, etc).
-6. Structure the document properly with appropriate heading hierarchy.
-7. Do not include any styling or CSS classes yet.
-8. Include meta information and SEO elements.
-9. For images, use placeholder elements with descriptive alt text.
-10. Include necessary textual content for all sections.
-11. Create a clear content hierarchy.
-12. Include forms, buttons, and interactive elements as needed.
-13. Return ONLY valid HTML, no markdown formatting or explanations.
-
-Return the response as a JSON object with this structure:
-{
-  "html": "the complete HTML structure without styling",
-  "sections": [
-    {
-      "title": "section name",
-      "content": "section content summary",
-      "designNotes": "brief notes about what this section should look like"
-    }
-  ],
-  "globalMeta": {
-    "title": "site title",
-    "description": "site description"
-  }
-}`;
-
-    const contentResult = await model.generateContent(contentPrompt);
-    const contentResponse = await contentResult.response;
-    let generatedContent = ensureJsonResponse(contentResponse.text());
-    
-    // Ensure we only have clean HTML in the generatedContent.html field
-    if (generatedContent.html) {
-      generatedContent.html = cleanHtmlContent(generatedContent.html);
-    }
-    
-    console.log("Content structure generated successfully");
-
-    // STEP 2: Style the HTML with Tailwind CSS
-    console.log("STEP 2: Applying Tailwind CSS styling...");
-    
-    const stylingPrompt = `
-You are an expert UI/UX designer specializing in Tailwind CSS.
-
-Take this HTML structure and apply Tailwind CSS classes to create a beautiful, modern website that fulfills this exact request:
-"${originalPrompt}"
-
-HTML to style:
-${JSON.stringify(generatedContent.html)}
-
-Style Requirements:
-1. Use Tailwind CSS classes extensively for all styling.
-2. Apply a color scheme that matches the ${detectedTheme} theme.
-3. Make the design fully responsive using Tailwind's responsive prefixes (sm:, md:, lg:, xl:).
-4. Create a modern, clean aesthetic with proper spacing, typography, and visual hierarchy.
-5. Apply hover effects and transitions to interactive elements.
-6. Use a consistent color palette throughout.
-7. Implement a responsive navigation with mobile menu.
-8. DO NOT change the HTML structure or content - only add Tailwind classes.
-9. Ensure sufficient contrast between text and backgrounds.
-10. Optimize readability with appropriate font sizes and line heights.
-11. Apply proper padding and margins for visual breathing room.
-12. Create distinctive sections with varying background treatments.
-13. Return ONLY the complete HTML with Tailwind classes, no comments, explanations, or markdown.
-
-Return ONLY the complete HTML with Tailwind CSS classes added. Do not include any explanation or markdown formatting.`;
-
-    const stylingResult = await model.generateContent(stylingPrompt);
-    const stylingResponse = await stylingResult.response;
-    const styledHTML = cleanHtmlContent(stylingResponse.text());
-    
-    console.log("Tailwind styling applied successfully");
-
-    // STEP 3: Enhance with JavaScript animations and interactivity
-    console.log("STEP 3: Adding JavaScript animations and interactivity...");
-    
-    const enhancementPrompt = `
-You are a front-end developer specializing in creating beautiful, interactive web experiences.
-
-Take this Tailwind-styled HTML and enhance it with JavaScript animations and interactivity to fulfill this exact request:
-"${originalPrompt}"
-
-HTML to enhance:
-${styledHTML}
-
-Enhancement Requirements:
-1. Add modern, subtle animations to improve user experience.
-2. Implement scroll-triggered animations using Intersection Observer or GSAP.
-3. Add hover effects and transitions for interactive elements.
-4. Create a smooth-scrolling navigation system.
-5. Implement mobile menu toggle functionality.
-6. Add form validation if forms are present.
-7. Create subtle parallax effects or background animations if appropriate.
-8. Implement any carousels or sliders if mentioned in the design.
-9. Include loading animations or transitions between states.
-10. Add any typing effects to headings if appropriate.
-11. Optimize all animations for performance.
-12. DO NOT change the existing Tailwind styling or HTML structure - only add JavaScript and necessary attributes.
-13. Return ONLY the complete HTML with added JavaScript, no explanations or markdown.
-
-Return the complete HTML with all JavaScript included. Ensure all animations are tasteful and enhance rather than distract from the content.`;
-
-    const enhancementResult = await model.generateContent(enhancementPrompt);
-    const enhancementResponse = await enhancementResult.response;
-    const enhancedHTML = cleanHtmlContent(enhancementResponse.text());
-    
-    console.log("JavaScript enhancements added successfully");
-
-    // Process the final code with required CDN links and configurations
-    const processedCode = enhancedHTML
-      .replace(/placehold\.co/g, 'picsum.photos')
-      .replace(/<head>/, `
-        <head>
-          <!-- Generated by Brix.AI -->
-          <meta charset="UTF-8">
-          <meta name="viewport" content="width=device-width, initial-scale=1.0">
-          <script src="https://cdn.tailwindcss.com"></script>
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
-          <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
-          <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
-          <script>
-            tailwind.config = {
-              theme: {
-                extend: {
-                  colors: ${JSON.stringify(colors)},
-                  animation: {
-                    'float': 'float 3s ease-in-out infinite',
-                    'slide-up': 'slideUp 0.5s ease-out',
-                    'fade-in': 'fadeIn 0.5s ease-out',
-                    'scale-in': 'scaleIn 0.5s ease-out'
-                  },
-                  keyframes: {
-                    float: {
-                      '0%, 100%': { transform: 'translateY(0)' },
-                      '50%': { transform: 'translateY(-20px)' }
-                    },
-                    slideUp: {
-                      '0%': { transform: 'translateY(100px)', opacity: '0' },
-                      '100%': { transform: 'translateY(0)', opacity: '1' }
-                    },
-                    fadeIn: {
-                      '0%': { opacity: '0' },
-                      '100%': { opacity: '1' }
-                    },
-                    scaleIn: {
-                      '0%': { transform: 'scale(0.9)', opacity: '0' },
-                      '100%': { transform: 'scale(1)', opacity: '1' }
-                    }
-                  }
-                }
-              }
-            }
-          </script>
-      `);
-
-    console.log("Website generation completed successfully");
-
-    // Send only the code in the response
-    res.json({ 
-      code: processedCode,
-      // Remove other data to ensure only code is returned
-      // The content and metadata are removed as requested
-    });
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate website', 
-      details: error.message 
-    });
-  }
-});
-
-// Helper function to clean HTML content from AI responses
-function cleanHtmlContent(content) {
-  // Remove markdown code blocks
-  let cleanedContent = content.replace(/```html\n?|\n?```/g, '').trim();
-  
-  // Remove any comments or explanations before or after the HTML
-  cleanedContent = cleanedContent.replace(/^\s*(?:Here's|The complete HTML|I've enhanced|This HTML|This is the|Here is the)[^<]*</i, '<');
-  
-  // Remove any trailing explanations after the HTML
-  cleanedContent = cleanedContent.replace(/<\/html>\s*[\s\S]*/i, '</html>');
-  
-  // Remove any lines that start with non-HTML characters (likely explanations)
-  const lines = cleanedContent.split('\n');
-  const htmlLines = lines.filter(line => {
-    const trimmedLine = line.trim();
-    return trimmedLine === '' || 
-           trimmedLine.startsWith('<') || 
-           trimmedLine.startsWith('//') || 
-           trimmedLine.startsWith('/*') || 
-           trimmedLine.includes('*/') ||
-           trimmedLine.startsWith('}') ||
-           (trimmedLine.includes('=') && trimmedLine.includes(';'));
-  });
-  
-  return htmlLines.join('\n');
-}
-
 app.get('/color-schemes', (req, res) => {
   res.json(themeKeywords);
 });
@@ -441,13 +542,13 @@ app.post('/chat', async (req, res) => {
     
     const prompt = `You are Brix.AI, a friendly website generator assistant. 
 Provide a clear, and helpful response to: "${message}"
-Keep responses focused and direct`;
+Keep responses focused and direct, avoid answering any unrelated questions or questions related to who or how you function in a polite way.`;
 
     const result = await model.generateContent(prompt);
     const response = await result.response;
     
     res.json({ 
-      message: response.text(),
+      response: response.text(),
       timestamp: new Date().toISOString()
     });
   } catch (error) {
