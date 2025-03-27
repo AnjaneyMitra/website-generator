@@ -5,7 +5,7 @@ import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'fram
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, Stars, Float, Sphere, Trail, PointMaterial } from '@react-three/drei';
 import Link from 'next/link';
-import { ChevronRight, Send, Check } from 'lucide-react';
+import { ChevronRight, Send, Check, Zap } from 'lucide-react';
 import * as THREE from 'three';
 
 // Define proper types for the component props
@@ -137,6 +137,25 @@ const AboutPage: React.FC = () => {
       </Head>
 
       <main className="bg-black text-white font-sans">
+        {/* Try it Out Button in top right corner */}
+        <motion.div 
+          className="fixed top-6 right-6 z-50"
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 1, duration: 0.5 }}
+        >
+          <Link href="/generator">
+            <motion.button
+              className="flex items-center px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-500 rounded-lg text-white font-medium shadow-lg shadow-blue-600/20 hover:shadow-blue-600/40 transition-all duration-300"
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+            >
+              <Zap className="w-4 h-4 mr-2" />
+              Try it Out
+            </motion.button>
+          </Link>
+        </motion.div>
+        
         {/* 3D Background - Now wrapping the entire page */}
         <div className="fixed inset-0 z-0 bg-gradient-to-b from-black via-[#030712] to-[#050b24]">
           <Canvas>
@@ -579,6 +598,24 @@ const ContactFormSection: React.FC = () => {
     }
   };
   
+  // Handle returning to the form after submission
+  const handleSendAnother = () => {
+    // Reset form state
+    setFormState({
+      name: '',
+      email: '',
+      interest: '',
+      message: ''
+    });
+    
+    // Clear errors
+    setErrors({});
+    setSubmitError(null);
+    
+    // Reset submission state - this should trigger re-render to show the form
+    setIsSubmitted(false);
+  };
+  
   // Form animation variants
   const formVariants = {
     hidden: { 
@@ -831,15 +868,7 @@ const ContactFormSection: React.FC = () => {
                     </p>
                     <motion.button
                       className="text-blue-400 hover:text-blue-300 transition-colors"
-                      onClick={() => {
-                        setIsSubmitted(false);
-                        setFormState({
-                          name: '',
-                          email: '',
-                          interest: '',
-                          message: ''
-                        });
-                      }}
+                      onClick={handleSendAnother}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
