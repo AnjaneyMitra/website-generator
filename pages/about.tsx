@@ -598,6 +598,24 @@ const ContactFormSection: React.FC = () => {
     }
   };
   
+  // Handle returning to the form after submission
+  const handleSendAnother = () => {
+    // Reset form state
+    setFormState({
+      name: '',
+      email: '',
+      interest: '',
+      message: ''
+    });
+    
+    // Clear errors
+    setErrors({});
+    setSubmitError(null);
+    
+    // Reset submission state - this should trigger re-render to show the form
+    setIsSubmitted(false);
+  };
+  
   // Form animation variants
   const formVariants = {
     hidden: { 
@@ -850,17 +868,7 @@ const ContactFormSection: React.FC = () => {
                     </p>
                     <motion.button
                       className="text-blue-400 hover:text-blue-300 transition-colors"
-                      onClick={() => {
-                        setIsSubmitted(false);
-                        setFormState({
-                          name: '',
-                          email: '',
-                          interest: '',
-                          message: ''
-                        });
-                        setErrors({});  // Clear any validation errors
-                        setSubmitError(null);  // Clear any submission error
-                      }}
+                      onClick={handleSendAnother}
                       whileHover={{ scale: 1.05 }}
                       whileTap={{ scale: 0.95 }}
                     >
