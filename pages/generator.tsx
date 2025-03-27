@@ -73,14 +73,11 @@ export default function Home() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [previewMode, setPreviewMode] = useState<'wide' | 'mobile'>('wide');
   const [inputMode, setInputMode] = useState<'generate' | 'ask'>('generate');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([{
-    id: '1',
-    content: "👋 Hi there! I'm Brix.AI, your personal website creation assistant.\n\nI can help you create beautiful, functional websites in minutes. Just describe what you'd like to build, and I'll generate it for you.\n\nUse the 'Generate' mode to create websites, or switch to 'Ask' if you have questions about web development.",
-    role: 'assistant',
-    timestamp: new Date()
-  }]);
+  // Empty initial state for chat messages - no welcome message in the chat
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [showPreview, setShowPreview] = useState(false);
   const [generationSteps, setGenerationSteps] = useState<string[]>([]);
+  const [hasInteracted, setHasInteracted] = useState(false); // New state to track if user has interacted
   
   const toggleSidebar = () => {
     setIsSidebarOpen(prev => !prev);
@@ -96,6 +93,7 @@ export default function Home() {
     try {
       setLoading(true);
       setGenerationSteps([]);
+      setHasInteracted(true); // Mark that user has interacted
       
       // Close any existing EventSource connection
       if (eventSource.current) {
@@ -112,33 +110,95 @@ export default function Home() {
         console.log('SSE connection opened successfully');
       };
       
+      // Store the clientId when it's received from the server
+      let clientId: string | null = null;
+      
       eventSource.current.onmessage = (event) => {
         console.log('SSE message received:', event.data);
         try {
           const data = JSON.parse(event.data);
           
-          if (data.type === 'step') {
+          if (data.type === 'step' || data.type === 'progress') {
             setGenerationSteps(prev => [...prev, data.message]);
           } else if (data.type === 'complete') {
-            setGeneratedCode(data.code);
-            setPreview(data.code);
-            setShowPreview(true);
+            console.log('Generation complete, received HTML:', data.html ? data.html.substring(0, 100) + '...' : 'none');
             
-            // Add assistant message to chat
-            const assistantMessage: ChatMessage = {
-              id: Date.now().toString() + '-response',
-              content: "I've generated your website based on your description. You can view it in the preview panel.",
-              role: 'assistant',
-              timestamp: new Date()
-            };
-            setChatMessages(prev => [...prev, assistantMessage]);
+            if (data.html) {
+              setGeneratedCode(data.html);
+              setPreview(data.html);
+              setShowPreview(true);
+              
+              // Add assistant message to chat
+              const assistantMessage: ChatMessage = {
+                id: Date.now().toString() + '-response',
+                content: "I've generated your website based on your description. You can view it in the preview panel.",
+                role: 'assistant',
+                timestamp: new Date()
+              };
+              setChatMessages(prev => [...prev, assistantMessage]);
+            } else {
+              console.error('No HTML received in complete message');
+              
+              // Add error message to chat
+              const errorMessage: ChatMessage = {
+                id: Date.now().toString() + '-error',
+                content: "Sorry, I couldn't generate the website properly. Please try again.",
+                role: 'assistant',
+                timestamp: new Date()
+              };
+              setChatMessages(prev => [...prev, errorMessage]);
+            }
             
             // Close the connection
             eventSource.current?.close();
             eventSource.current = null;
             setLoading(false);
           } else if (data.type === 'connected') {
-            console.log('SSE connection established:', data.message);
+            console.log('SSE connection established, clientId:', data.clientId);
+            clientId = data.clientId; // Store the clientId from the server
+            
+            // After receiving the clientId, send the prompt to start generation
+            if (clientId) {
+              sendPromptToServer(clientId);
+            } else {
+              console.error('No clientId received from server');
+              // Handle the error appropriately
+              eventSource.current?.close();
+              eventSource.current = null;
+              setLoading(false);
+              
+              const errorMessage: ChatMessage = {
+                id: Date.now().toString() + '-error',
+                content: "Sorry, I couldn't generate the website. Failed to establish a connection with the server.",
+                role: 'assistant',
+                timestamp: new Date()
+              };
+              setChatMessages(prev => [...prev, errorMessage]);
+            }
+          } else if (data.type === 'error') {
+            console.error('Server reported an error:', data.message);
+            
+            // Add error message to chat
+            const errorMessage: ChatMessage = {
+              id: Date.now().toString() + '-error',
+              content: data.message || "Sorry, I encountered an error while generating your website.",
+              role: 'assistant',
+              timestamp: new Date()
+            };
+            setChatMessages(prev => [...prev, errorMessage]);
+            
+            // Close the connection
+            eventSource.current?.close();
+            eventSource.current = null;
+            setLoading(false);
+          } else if (data.type === 'info') {
+            console.log('Server info:', data.message);
+            // Optional: display info message to user
+          } else if (data.type === 'heartbeat') {
+            // Heartbeat received, connection is alive
+            console.log('Heartbeat received from server');
+          } else {
+            console.log('Unknown message type received:', data.type);
           }
         } catch (parseError) {
           console.error('Error parsing SSE message:', parseError, event.data);
@@ -165,43 +225,6 @@ export default function Home() {
         setChatMessages(prev => [...prev, errorMessage]);
       };
       
-      // Send the prompt to the server
-      try {
-        const response = await fetch('http://localhost:3001/start-generation', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({ prompt }),
-        });
-        
-        if (!response.ok) {
-          console.error(`HTTP error: ${response.status}`);
-          throw new Error(`Failed to start generation process. Status: ${response.status}`);
-        }
-        
-        // Clear the prompt to prepare for chat mode
-        setPrompt('');
-      } catch (fetchError) {
-        console.error('Fetch error:', fetchError);
-        // Close any existing connection if the fetch fails
-        if (eventSource.current) {
-          eventSource.current.close();
-          eventSource.current = null;
-        }
-        
-        setLoading(false);
-        
-        // Show error message in chat
-        const errorMessage: ChatMessage = {
-          id: Date.now().toString() + '-error',
-          content: "Sorry, I couldn't connect to the generation service. Please try again later.",
-          role: 'assistant',
-          timestamp: new Date()
-        };
-        setChatMessages(prev => [...prev, errorMessage]);
-      }
-      
     } catch (error) {
       console.error('Error generating website:', error);
       setLoading(false);
@@ -221,10 +244,50 @@ export default function Home() {
       setChatMessages(prev => [...prev, errorMessage]);
     }
   };
+  
+  // Helper function to send the prompt to the server after establishing SSE connection
+  const sendPromptToServer = async (clientId: string) => {
+    try {
+      const response = await fetch('http://localhost:3001/start-generation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt, clientId }),
+      });
+      
+      if (!response.ok) {
+        console.error(`HTTP error: ${response.status}`);
+        throw new Error(`Failed to start generation process. Status: ${response.status}`);
+      }
+      
+      // Clear the prompt to prepare for chat mode
+      setPrompt('');
+    } catch (fetchError) {
+      console.error('Fetch error:', fetchError);
+      // Close any existing connection if the fetch fails
+      if (eventSource.current) {
+        eventSource.current.close();
+        eventSource.current = null;
+      }
+      
+      setLoading(false);
+      
+      // Show error message in chat
+      const errorMessage: ChatMessage = {
+        id: Date.now().toString() + '-error',
+        content: "Sorry, I couldn't connect to the generation service. Please try again later.",
+        role: 'assistant',
+        timestamp: new Date()
+      };
+      setChatMessages(prev => [...prev, errorMessage]);
+    }
+  };
 
   const sendChatMessage = async () => {
     if (!prompt.trim()) return;
     
+    setHasInteracted(true); // Mark that user has interacted
     // Add user message to chat
     const userMessage: ChatMessage = {
       id: Date.now().toString(),
@@ -287,6 +350,8 @@ export default function Home() {
   const handleInputSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
+    
+    setHasInteracted(true); // Mark that user has interacted
     
     if (inputMode === 'generate') {
       // Add user message
@@ -752,111 +817,127 @@ export default function Home() {
               <div className={`flex-1 transition-all duration-500 flex flex-col ${
                 showPreview ? 'max-w-[50%]' : 'max-w-full'
               }`}>
-                {/* Chat content container - centered full height */}
-                <div className="flex-1 flex flex-col items-center justify-center">
-                  <div className={`w-full max-w-2xl px-4 ${
-                    chatMessages.length > 1 ? 'py-4' : 'flex flex-col items-center justify-center min-h-[80vh]'
-                  }`}>
-                    {/* Welcome message when no chat exists */}
-                    {chatMessages.length === 1 && (
-                      <div className="text-center mb-8">
-                        <h2 className="text-3xl font-bold mb-4">Welcome to Brix.AI</h2>
-                        <p className="text-gray-400 max-w-lg mx-auto">
-                          Your personal website builder powered by AI. Describe the website you want to create, 
-                          or ask questions about web development.
+                {/* Chat content container */}
+                <div className="flex-1 flex flex-col">
+                  {/* Messages area with conditional styling based on interaction */}
+                  <div className={`flex-1 overflow-y-auto ${!hasInteracted ? 'flex items-center justify-center' : ''}`}>
+                    {/* Welcome screen (shown when no interaction has happened) */}
+                    {!hasInteracted ? (
+                      <div className="text-center px-4 max-w-xl mx-auto">
+                        <h1 className="text-4xl font-bold mb-4">Welcome to Brix.AI</h1>
+                        <p className="text-gray-400 text-lg mb-8">
+                          Your personal website builder powered by AI
+                        </p>
+                        {/* Subtle instruction to get started */}
+                        <p className="text-gray-500 text-sm">
+                          Use the input below to describe the website you want to create
                         </p>
                       </div>
-                    )}
-
-                    {/* Chat Messages Container */}
-                    <div className="space-y-6 mb-6">
-                      {chatMessages.slice(chatMessages.length > 1 ? 1 : 0).map((msg, index) => (
-                        <div 
-                          key={msg.id}
-                          className="w-full"
-                        >
-                          {msg.role === 'user' ? (
-                            <div className="flex items-start mb-1.5">
-                              <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center mr-3 mt-0.5">
-                                <User className="h-5 w-5 text-white" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-white whitespace-pre-line">{msg.content}</p>
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="flex items-start mb-1.5">
-                              <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center mr-3 mt-0.5">
-                                <Sparkles className="h-5 w-5 text-white" />
-                              </div>
-                              <div className="flex-1">
-                                <p className="text-white whitespace-pre-line">{msg.content}</p>
-                                
-                                {/* Show generation steps if this is the loading message and we have steps */}
-                                {loading && 
-                                 index === chatMessages.length - 1 && 
-                                 inputMode === 'generate' && 
-                                 generationSteps.length > 0 && (
-                                  <div className="mt-3 text-sm text-gray-400 border-l-2 border-gray-700 pl-3 ml-1">
-                                    {generationSteps.map((step, i) => (
-                                      <div key={i} className="mb-1.5">
-                                        {step}
+                    ) : (
+                      /* Chat messages - shown after interaction begins */
+                      <div className="w-full max-w-3xl mx-auto px-4 py-4">
+                        <div className="space-y-6">
+                          {chatMessages.map((msg, index) => (
+                            <div 
+                              key={msg.id}
+                              className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} mb-4`}
+                            >
+                              {/* Assistant message (left-aligned) */}
+                              {msg.role === 'assistant' && (
+                                <div className="flex max-w-[85%]">
+                                  <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
+                                    <Sparkles className="h-4 w-4 text-white" />
+                                  </div>
+                                  <div className="bg-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3">
+                                    <p className="text-white whitespace-pre-line">{msg.content}</p>
+                                    
+                                    {/* Show generation steps */}
+                                    {loading && 
+                                     index === chatMessages.length - 1 && 
+                                     inputMode === 'generate' && 
+                                     generationSteps.length > 0 && (
+                                      <div className="mt-3 text-sm text-gray-400 border-l-2 border-gray-700 pl-3">
+                                        {generationSteps.map((step, i) => (
+                                          <div key={i} className="mb-1.5">
+                                            {step}
+                                          </div>
+                                        ))}
                                       </div>
-                                    ))}
+                                    )}
+                                    
+                                    {/* Display the Preview button after generation is complete */}
+                                    {!loading && 
+                                     generatedCode && 
+                                     index === chatMessages.length - 1 && (
+                                      <div className="mt-4">
+                                        <button 
+                                          onClick={togglePreview} 
+                                          className="px-4 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-full text-white text-sm transition-colors flex items-center"
+                                        >
+                                          {showPreview ? 'Collapse' : 'Preview'}
+                                          {!showPreview && (
+                                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-4 h-4 ml-1.5">
+                                              <path fillRule="evenodd" d="M3 10a.75.75 0 01.75-.75h10.638L10.23 5.29a.75.75 0 111.04-1.08l5.5 5.25a.75.75 0 010 1.08l-5.5 5.25a.75.75 0 11-1.04-1.08l4.158-3.96H3.75A.75.75 0 013 10z" clipRule="evenodd" />
+                                            </svg>
+                                          )}
+                                        </button>
+                                      </div>
+                                    )}
                                   </div>
-                                )}
-                                
-                                {/* Display the Preview button after generation is complete */}
-                                {!loading && 
-                                 generatedCode && 
-                                 index === chatMessages.length - 1 && 
-                                 msg.role === 'assistant' && (
-                                  <div className="mt-3">
-                                    <button 
-                                      onClick={togglePreview} 
-                                      className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700 rounded-md text-white text-sm transition-colors"
-                                    >
-                                      {showPreview ? 'Collapse' : 'Preview'}
-                                    </button>
+                                </div>
+                              )}
+                              
+                              {/* User message (right-aligned) */}
+                              {msg.role === 'user' && (
+                                <div className="flex max-w-[85%]">
+                                  <div className="bg-blue-700 rounded-2xl rounded-tr-sm px-4 py-3">
+                                    <p className="text-white whitespace-pre-line">{msg.content}</p>
                                   </div>
-                                )}
+                                  <div className="h-8 w-8 rounded-full bg-zinc-700 flex items-center justify-center ml-2 mt-1 flex-shrink-0">
+                                    <User className="h-4 w-4 text-white" />
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                          
+                          {/* Loading indicator */}
+                          {loading && (
+                            <div className="flex justify-start mb-4">
+                              <div className="flex max-w-[85%]">
+                                <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center mr-2 mt-1 flex-shrink-0">
+                                  <Sparkles className="h-4 w-4 text-white" />
+                                </div>
+                                <div className="bg-zinc-800 rounded-2xl rounded-tl-sm px-4 py-3">
+                                  <div className="flex items-center">
+                                    <span className="mr-2 text-gray-300">
+                                      {inputMode === 'generate' ? 'Generating website' : 'Thinking'}
+                                    </span>
+                                    <Loader2 className="w-4 h-4 animate-spin text-blue-400" />
+                                  </div>
+                                  
+                                  {/* Show generation steps if we have them */}
+                                  {inputMode === 'generate' && generationSteps.length > 0 && (
+                                    <div className="mt-3 text-sm text-gray-400 border-l-2 border-gray-700 pl-3">
+                                      {generationSteps.map((step, i) => (
+                                        <div key={i} className="mb-1.5">
+                                          {step}
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             </div>
                           )}
                         </div>
-                      ))}
-                      
-                      {/* Loading indicator */}
-                      {loading && (
-                        <div className="flex items-start mb-1.5">
-                          <div className="h-8 w-8 rounded-full bg-blue-600 flex items-center justify-center mr-3 mt-0.5">
-                            <Sparkles className="h-5 w-5 text-white" />
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center">
-                              <span className="mr-2">
-                                {inputMode === 'generate' ? 'Generating website' : 'Thinking'}
-                              </span>
-                              <Loader2 className="w-4 h-4 animate-spin" />
-                            </div>
-                            
-                            {/* Show generation steps if we have them */}
-                            {inputMode === 'generate' && generationSteps.length > 0 && (
-                              <div className="mt-3 text-sm text-gray-400 border-l-2 border-gray-700 pl-3 ml-1">
-                                {generationSteps.map((step, i) => (
-                                  <div key={i} className="mb-1.5">
-                                    {step}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
+                  </div>
 
-                    {/* Input Area with mode toggle - always centered at bottom */}
-                    <div className="w-full">
+                  {/* Input Area - always at bottom */}
+                  <div className="w-full py-4 px-4 border-t border-zinc-800/40">
+                    <div className="max-w-2xl mx-auto">
                       {/* Mode toggle */}
                       <div className="flex justify-center mb-3">
                         <div className="bg-zinc-800 rounded-full p-1 flex shadow-md">
@@ -887,6 +968,7 @@ export default function Home() {
                         </div>
                       </div>
                       
+                      {/* Input form */}
                       <form 
                         onSubmit={handleInputSubmit}
                         className="flex gap-2 relative"

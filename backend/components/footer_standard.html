@@ -1,0 +1,64 @@
+<footer class="bg-gray-900 text-white py-12">
+    <div class="container mx-auto">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-8">
+            <div class="md:col-span-2">
+                <a href="/" class="text-2xl font-bold text-white">{{company_name}}</a>
+                <p class="mt-4 text-gray-400 max-w-md">
+                    {{company_description}}
+                </p>
+                
+                {{#if social_links}}
+                <div class="mt-6 flex space-x-4">
+                    {{#each social_links}}
+                    <a href="{{url}}" class="text-gray-400 hover:text-white transition-colors" aria-label="{{platform}}">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+                        </svg>
+                    </a>
+                    {{/each}}
+                </div>
+                {{/if}}
+            </div>
+            
+            {{#if link_columns}}
+            {{#each link_columns}}
+            <div>
+                <h3 class="text-lg font-semibold mb-4">{{title}}</h3>
+                <ul class="space-y-2">
+                    {{#each links}}
+                    <li>
+                        <a href="{{url}}" class="text-gray-400 hover:text-white transition-colors">
+                            {{text}}
+                        </a>
+                    </li>
+                    {{/each}}
+                </ul>
+            </div>
+            {{/each}}
+            {{/if}}
+            
+            <div>
+                <h3 class="text-lg font-semibold mb-4">Newsletter</h3>
+                <p class="text-gray-400 mb-4">Stay updated with our latest news and offers.</p>
+                <form class="flex">
+                    <input type="email" placeholder="Your email" class="px-4 py-2 w-full bg-gray-800 border border-gray-700 rounded-l-md focus:outline-none focus:ring-2 focus:ring-primary">
+                    <button type="submit" class="bg-primary text-white px-4 py-2 rounded-r-md hover:opacity-90">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fill-rule="evenodd" d="M10.293 3.293a1 1 0 011.414 0l6 6a1 1 0 010 1.414l-6 6a1 1 0 01-1.414-1.414L14.586 11H3a1 1 0 110-2h11.586l-4.293-4.293a1 1 0 010-1.414z" clip-rule="evenodd" />
+                        </svg>
+                    </button>
+                </form>
+            </div>
+        </div>
+        
+        <div class="mt-12 pt-8 border-t border-gray-800 flex flex-col md:flex-row justify-between items-center">
+            <p class="text-gray-400">
+                &copy; {{current_year}} {{company_name}}. All rights reserved.
+            </p>
+            <div class="mt-4 md:mt-0 flex space-x-6">
+                <a href="#" class="text-gray-400 hover:text-white transition-colors">Privacy Policy</a>
+                <a href="#" class="text-gray-400 hover:text-white transition-colors">Terms of Service</a>
+            </div>
+        </div>
+    </div>
+</footer> 
