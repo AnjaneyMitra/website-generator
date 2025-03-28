@@ -56,8 +56,10 @@ const Navbar = () => {
             </div>
           </div>
           <div className="hidden md:block">
-            <Link href="/get-started" 
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors">
+            <Link 
+              href="/generator" 
+              className="inline-flex items-center justify-center whitespace-nowrap rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-500 transition-colors"
+            >
               Get Started
             </Link>
           </div>
@@ -98,7 +100,7 @@ const Navbar = () => {
           </div>
           <div className="pt-4 pb-3 border-t border-gray-700">
             <div className="px-2">
-              <Link href="/get-started"
+              <Link href="/generator"
                 className="block w-full px-5 py-3 text-center font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-md">
                 Get Started
               </Link>
