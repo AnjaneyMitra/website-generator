@@ -21,20 +21,20 @@ const withRetry = async (fn, maxAttempts = 3) => {
   let lastError = null;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      console.log(Attempt ${attempt}/${maxAttempts});
+      console.log(`Attempt ${attempt}/${maxAttempts}`);
       return await fn();
     } catch (error) {
-      console.error(Attempt ${attempt} failed:, error.message);
+      console.error(`Attempt ${attempt} failed:`, error.message);
       lastError = error;
       if (attempt < maxAttempts) {
         // Wait before retrying (optional exponential backoff)
         const delay = Math.min(1000 * 2 ** (attempt - 1), 5000);
-        console.log(Retrying in ${delay}ms...);
+        console.log(`Retrying in ${delay}ms...`);
         await new Promise(resolve => setTimeout(resolve, delay));
       }
     }
   }
-  console.error(All ${maxAttempts} attempts failed.);
+  console.error(`All ${maxAttempts} attempts failed.`);
   throw lastError;
 };
 
@@ -185,8 +185,8 @@ const ensureJsonResponse = (text) => {
   } catch (e) {
     console.log('Direct JSON parsing failed, trying to extract JSON from markdown', e.message);
     try {
-      // Extract JSON from markdown code blocks
-      const jsonMatch = text.match(/(?:json)?\s*([\s\S]*?)\s*/);
+      // Extract JSON from markdown code blocks - fix regex to better target JSON blocks
+      const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
         console.log('Found JSON in markdown code block');
         const jsonContent = jsonMatch[1].trim();
@@ -230,7 +230,7 @@ const ensureJsonResponse = (text) => {
     } catch (error) {
       console.error('All parsing attempts failed:', error);
       console.log('Raw text from AI:', text.substring(0, 500) + '...');
-      throw new Error(Failed to parse AI response into JSON: ${error.message});
+      throw new Error(`Failed to parse AI response into JSON: ${error.message}`);
     }
   }
 };
@@ -243,13 +243,13 @@ function processMarkdownContent(content) {
   content = content.replace(/^\s*[-*]\s+(.+)$/gm, '<li>$1</li>');
   content = content.replace(/(<li>.*<\/li>\n)+/g, '<ul>$&</ul>');
   
-  // Handle bold
-  content = content.replace(/\\(.?)\\*/g, '<strong>$1</strong>');
-  content = content.replace(/(.*?)/g, '<strong>$1</strong>');
+  // Handle bold - fix regex patterns
+  content = content.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  content = content.replace(/__(.*?)__/g, '<strong>$1</strong>');
   
-  // Handle italic
-  content = content.replace(/\(.?)\*/g, '<em>$1</em>');
-  content = content.replace(/(.*?)/g, '<em>$1</em>');
+  // Handle italic - fix regex patterns
+  content = content.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  content = content.replace(/_(.*?)_/g, '<em>$1</em>');
   
   // Handle headers (h3 and below, as h1-h2 are likely already used for section titles)
   content = content.replace(/^###\s+(.*)$/gm, '<h3>$1</h3>');
@@ -257,21 +257,21 @@ function processMarkdownContent(content) {
   content = content.replace(/^#####\s+(.*)$/gm, '<h5>$1</h5>');
   
   // Handle links
-  content = content.replace(/\[(.?)\]\((.?)\)/g, '<a href="$2" class="text-primary hover:underline">$1</a>');
+  content = content.replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2" class="text-primary hover:underline">$1</a>');
   
-  // Handle code blocks
-  content = content.replace(/([\s\S]*?)/g, '<pre class="bg-gray-100 p-4 rounded"><code>$1</code></pre>');
+  // Handle code blocks - fix regex
+  content = content.replace(/```([\s\S]*?)```/g, '<pre class="bg-gray-100 p-4 rounded"><code>$1</code></pre>');
   
-  // Handle inline code
-  content = content.replace(/([^]+)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>');
+  // Handle inline code - fix regex
+  content = content.replace(/`([^`]+)`/g, '<code class="bg-gray-100 px-1 rounded">$1</code>');
   
-  // Handle paragraphs - wrap content that's not already in HTML tags
+  // Handle paragraphs - fix template literals
   const paragraphs = content.split('\n\n');
   content = paragraphs.map(p => {
     p = p.trim();
     if (!p) return '';
     if (p.match(/^<(ul|li|h|pre|code)/)) return p;
-    return <p>${p}</p>;
+    return `<p>${p}</p>`;
   }).join('\n\n');
   
   return content;
@@ -647,7 +647,7 @@ app.post('/chat', async (req, res) => {
       return res.status(400).json({ error: 'Message is required' });
     }
 
-    console.log(Received chat message, context length: ${conversationContext.length});
+    console.log(`Received chat message, context length: ${conversationContext.length}`);
     
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     
@@ -708,7 +708,7 @@ Always be helpful, friendly, and respect the user's choice. Remember previous pa
 The user has been talking with you about website requirements.
 
 Previous messages (for context only):
-${conversationContext.map(msg => ${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}).join('\n')}
+${conversationContext.map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n')}
 
 The user's latest message is: "${message}"
 
@@ -757,9 +757,9 @@ Keep your response friendly, clear, and focused on helping the user generate the
 });
 
 app.listen(port, () => {
-  console.log(Brix.AI Server running at http://localhost:${port});
-  console.log(API key configured: ${process.env.GEMINI_API_KEY ? 'Yes' : 'No'});
-  console.log(Supported color schemes: ${Object.keys(themeKeywords).join(', ')});
+  console.log(`Brix.AI Server running at http://localhost:${port}`);
+  console.log(`API key configured: ${process.env.GEMINI_API_KEY ? 'Yes' : 'No'}`);
+  console.log(`Supported color schemes: ${Object.keys(themeKeywords).join(', ')}`);
 });
 
 // Export functions for testing or external use if needed
