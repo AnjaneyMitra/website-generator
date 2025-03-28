@@ -1,0 +1,141 @@
+```json
+{
+  "selected_template": "modern_portfolio",
+  "meta": {
+    "title": "Jane Dawson | MBA Candidate",
+    "description": "Professional portfolio website for Jane Dawson, showcasing her experience and MBA journey."
+  },
+  "content_structure": {
+    "header": {
+      "component": "header_nav",
+      "content": {
+        "company_name": "Jane Dawson",
+        "logo": "",
+        "navigation_links": [
+          { "text": "About", "url": "#about" },
+          { "text": "Experience", "url": "#experience" },
+          { "text": "Projects", "url": "#projects" },
+          { "text": "Contact", "url": "#contact" }
+        ],
+        "cta_button": {
+          "text": "Download Resume",
+          "url": "#resume"
+        }
+      }
+    },
+    "sections": [
+      {
+        "id": "hero",
+        "suggested_component": "hero_centered",
+        "generated_content": {
+          "heading": "Jane Dawson",
+          "subheading": "MBA Candidate | Aspiring Leader",
+          "primary_button": {
+            "text": "Contact Me",
+            "url": "#contact"
+          },
+          "secondary_button": {
+            "text": "Learn More",
+            "url": "#about"
+          }
+        }
+      },
+      {
+        "id": "about",
+        "suggested_component": "features_cards",
+        "generated_content": {
+          "title": "About Me",
+          "description": "A brief introduction to Jane Dawson and her MBA journey.",
+          "cards": [
+            {
+              "title": "Education",
+              "description": "Details about Jane's educational background."
+            },
+            {
+              "title": "Skills",
+              "description": "A list of Jane's key skills and competencies."
+            },
+            {
+              "title": "Interests",
+              "description": "Jane's personal interests and hobbies."
+            }
+          ]
+        }
+      },
+      {
+        "id": "experience",
+        "suggested_component": "portfolio_grid",
+        "generated_content": {
+          "title": "Professional Experience",
+          "description": "Showcasing Jane's work experience and accomplishments.",
+          "projects": [
+            {
+              "title": "Project 1",
+              "description": "A brief description of the project."
+            },
+            {
+              "title": "Project 2",
+              "description": "Another project description."
+            }
+          ]
+        }
+      },
+      {
+        "id": "projects",
+        "suggested_component": "features_grid",
+        "generated_content": {
+          "title": "MBA Projects",
+          "description": "Highlighting projects completed during the MBA program.",
+          "features": [
+            {
+              "title": "Project A",
+              "description": "Details about Project A."
+            },
+            {
+              "title": "Project B",
+              "description": "Details about Project B."
+            }
+          ]
+        }
+      },
+      {
+        "id": "contact",
+        "suggested_component": "contact_form",
+        "generated_content": {
+          "title": "Contact Me",
+          "description": "Get in touch with Jane Dawson."
+        }
+      }
+    ],
+    "footer": {
+      "component": "footer_standard",
+      "content": {
+        "company_name": "Jane Dawson",
+        "company_description": "MBA Candidate",
+        "social_links": [
+          { "platform": "linkedin", "url": "https://www.linkedin.com/in/janedawson" }
+        ],
+        "current_year": 2024
+      }
+    }
+  },
+  "theme_configuration": {
+    "colors": {
+      "primary": "#374151",
+      "secondary": "#4b5563",
+      "accent": "#2563eb",
+      "background": "#f9fafb",
+      "text": "#111827"
+    },
+    "fonts": {
+      "primary": "Roboto",
+      "heading": "Roboto"
+    },
+    "design_style": "corporate",
+    "spacing": "structured",
+    "effects": "subtle",
+    "shadows": "subtle",
+    "borders": "clean"
+  }
+}
+```

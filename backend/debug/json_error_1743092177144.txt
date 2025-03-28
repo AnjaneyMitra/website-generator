@@ -1,0 +1,156 @@
+```json
+{
+  "selected_template": "modern_portfolio",
+  "meta": {
+    "title": "Jane Dawson - MBA Portfolio",
+    "description": "Professional portfolio website for Jane Dawson, MBA candidate."
+  },
+  "content_structure": {
+    "header": {
+      "component": "header_nav",
+      "content": {
+        "company_name": "Jane Dawson",
+        "logo": "",
+        "navigation_links": [
+          { "text": "About", "url": "#about" },
+          { "text": "Experience", "url": "#experience" },
+          { "text": "Projects", "url": "#projects" },
+          { "text": "Contact", "url": "#contact" }
+        ],
+        "cta_button": {
+          "text": "Download Resume",
+          "url": "#resume"
+        }
+      }
+    },
+    "sections": [
+      {
+        "id": "hero",
+        "suggested_component": "hero_centered",
+        "generated_content": {
+          "heading": "Jane Dawson",
+          "subheading": "MBA Candidate | Aspiring Leader",
+          "primary_button": {
+            "text": "Learn More",
+            "url": "#about"
+          },
+          "secondary_button": {
+            "text": "View Projects",
+            "url": "#projects"
+          }
+        }
+      },
+      {
+        "id": "about",
+        "suggested_component": "features_cards",
+        "generated_content": {
+          "title": "About Me",
+          "description": "A brief overview of Jane Dawson's background and aspirations.",
+          "features": [
+            {
+              "title": "Education",
+              "description": "Currently pursuing an MBA degree.",
+              "icon": "education"
+            },
+            {
+              "title": "Skills",
+              "description": "Highlighting key skills and competencies.",
+              "icon": "skills"
+            },
+            {
+              "title": "Experience",
+              "description": "Summary of professional experience.",
+              "icon": "experience"
+            }
+          ]
+        }
+      },
+      {
+        "id": "experience",
+        "suggested_component": "features_grid",
+        "generated_content": {
+          "title": "Professional Experience",
+          "description": "Details of Jane Dawson's work history.",
+          "features": [
+            {
+              "title": "Previous Role 1",
+              "description": "Description of responsibilities and achievements.",
+              "image": ""
+            },
+            {
+              "title": "Previous Role 2",
+              "description": "Description of responsibilities and achievements.",
+              "image": ""
+            }
+          ]
+        }
+      },
+      {
+        "id": "projects",
+        "suggested_component": "portfolio_grid",
+        "generated_content": {
+          "title": "Projects",
+          "description": "Showcase of Jane Dawson's projects.",
+          "projects": [
+            {
+              "title": "Project 1",
+              "description": "Brief description of the project.",
+              "image": "",
+              "url": "#"
+            },
+            {
+              "title": "Project 2",
+              "description": "Brief description of the project.",
+              "image": "",
+              "url": "#"
+            }
+          ]
+        }
+      },
+      {
+        "id": "contact",
+        "suggested_component": "contact_form",
+        "generated_content": {
+          "title": "Contact Me",
+          "description": "Contact form for inquiries.",
+          "form_fields": [
+            { "label": "Name", "type": "text" },
+            { "label": "Email", "type": "email" },
+            { "label": "Message", "type": "textarea" }
+          ],
+          "submit_button_text": "Send Message"
+        }
+      }
+    ],
+    "footer": {
+      "component": "footer_standard",
+      "content": {
+        "company_name": "Jane Dawson",
+        "company_description": "MBA Candidate",
+        "social_links": [
+          { "platform": "linkedin", "url": "https://www.linkedin.com/" }
+        ],
+        "current_year": 2024
+      }
+    }
+  },
+  "theme_configuration": {
+    "colors": {
+      "primary": "#374151",
+      "secondary": "#4b5563",
+      "accent": "#2563eb",
+      "background": "#f9fafb",
+      "text": "#111827"
+    },
+    "fonts": {
+      "primary": "Roboto",
+      "heading": "Roboto"
+    },
+    "design_style": "corporate",
+    "spacing": "structured",
+    "effects": "professional",
+    "shadows": "subtle",
+    "borders": "clean"
+  }
+}
+```
