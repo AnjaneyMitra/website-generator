@@ -3,10 +3,22 @@ const express = require('express');
 const cors = require('cors');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const path = require('path');
-const markdownToJson = require(path.resolve(__dirname, '../utils/markdownToJson'));
+const { markdownToJson } = require(path.resolve(__dirname, '../utils/markdownToJson'));
+const { generateTemplate } = require('./websiteTemplate');
 
 const app = express();
-const port = process.env.PORT || 3001;
+// Parse PORT as URL if it contains a protocol, otherwise use as is or default to 3001
+let port = process.env.PORT || 3001;
+if (typeof port === 'string' && port.includes('://')) {
+  try {
+    // Extract just the port number from the URL format
+    const url = new URL(port);
+    port = url.port || 3001;
+  } catch (e) {
+    console.error('Failed to parse PORT as URL, using default 3001', e);
+    port = 3001;
+  }
+}
 
 // Check if API key is configured properly
 if (!process.env.GEMINI_API_KEY) {
@@ -40,7 +52,7 @@ const withRetry = async (fn, maxAttempts = 3) => {
 
 // Update CORS to be more permissive during development
 const corsOptions = {
-  origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173', 'http://127.0.0.1:5173'],
+  origin: '*', // Allow all origins during development
   methods: ['POST', 'GET', 'OPTIONS', 'PUT', 'DELETE'],
   allowedHeaders: ['Content-Type', 'Authorization'],
   credentials: true
@@ -185,28 +197,86 @@ const ensureJsonResponse = (text) => {
   } catch (e) {
     console.log('Direct JSON parsing failed, trying to extract JSON from markdown', e.message);
     try {
-      // Extract JSON from markdown code blocks - fix regex to better target JSON blocks
+      // Log the first part of the text to help with debugging
+      console.log('Text starts with:', text.substring(0, 100).replace(/\n/g, '\\n'));
+      
+      // Try multiple regex patterns to extract JSON from markdown code blocks
+      let jsonContent = null;
+      
+      // Pattern 1: Standard markdown JSON code block
       const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
       if (jsonMatch) {
-        console.log('Found JSON in markdown code block');
-        const jsonContent = jsonMatch[1].trim();
-        return JSON.parse(jsonContent);
+        console.log('Found JSON in standard markdown code block');
+        jsonContent = jsonMatch[1].trim();
       }
       
-      // Handle formatted markdown content
-      console.log('No JSON code block found, trying to structure as sections');
+      // Pattern 2: Code block without language specifier
+      if (!jsonContent) {
+        const codeBlockMatch = text.match(/```\s*([\s\S]*?)```/);
+        if (codeBlockMatch) {
+          console.log('Found potential JSON in generic code block');
+          jsonContent = codeBlockMatch[1].trim();
+        }
+      }
+      
+      // Pattern 3: Look for JSON-like structure without code blocks
+      if (!jsonContent) {
+        const jsonObjectMatch = text.match(/(\{[\s\S]*\})/);
+        if (jsonObjectMatch) {
+          console.log('Found JSON-like structure in text');
+          jsonContent = jsonObjectMatch[1].trim();
+        }
+      }
+      
+      // Try to parse the extracted content if we found any
+      if (jsonContent) {
+        try {
+          return JSON.parse(jsonContent);
+        } catch (jsonError) {
+          console.log('Extracted content is not valid JSON:', jsonError.message);
+          console.log('Extracted content sample:', jsonContent.substring(0, 100));
+          
+          // Try cleaning up the content before parsing
+          const cleanedJson = jsonContent
+            .replace(/\\"/g, '"')         // Fix escaped quotes
+            .replace(/"\s*\n\s*"/g, '","') // Fix broken line separators
+            .replace(/,\s*}/g, '}')       // Remove trailing commas
+            .replace(/,\s*]/g, ']');      // Remove trailing commas in arrays
+            
+          console.log('Cleaned JSON sample:', cleanedJson.substring(0, 100));
+          
+          try {
+            return JSON.parse(cleanedJson);
+          } catch (cleanedError) {
+            console.log('Cleaned content is still not valid JSON:', cleanedError.message);
+          }
+        }
+      }
+      
+      // Handle formatted markdown content if all JSON extraction attempts failed
+      console.log('No valid JSON found, trying to structure as sections');
       const cleanedText = text.replace(/\r\n/g, '\n'); // Normalize line endings
       
       // Try to convert markdown to structured JSON using the utility
       try {
         const structuredContent = markdownToJson(cleanedText);
-        if (structuredContent && structuredContent.length > 0) {
+        if (structuredContent && structuredContent.content && structuredContent.content.length > 0) {
           console.log('Successfully converted markdown to structured JSON using markdownToJson utility');
           return {
-            sections: structuredContent.map(item => ({
-              title: item.role === 'user' ? 'User Query' : 'Response',
-              content: processMarkdownContent(item.content)
-            }))
+            sections: structuredContent.content.map(item => {
+              if (item.type === 'section') {
+                return {
+                  title: item.title || 'Section',
+                  content: item.content ? processContentArray(item.content) : ''
+                };
+              } else if (item.type === 'paragraph') {
+                return {
+                  title: 'Content',
+                  content: processMarkdownContent(item.text || '')
+                };
+              }
+              return { title: 'Section', content: '' };
+            })
           };
         }
       } catch (markdownError) {
@@ -214,7 +284,7 @@ const ensureJsonResponse = (text) => {
         // Continue with fallback approach
       }
       
-      // Fallback to the existing section splitting approach
+      // Final fallback - create a simple structure from sections
       const sections = cleanedText.split('\n\n').filter(Boolean);
       
       // Process markdown sections
@@ -225,15 +295,49 @@ const ensureJsonResponse = (text) => {
           const title = titleMatch ? titleMatch[1].trim() : lines[0].trim();
           const content = processMarkdownContent(lines.slice(titleMatch ? 1 : 0).join('\n').trim());
           return { title, content };
-        })
+        }),
+        globalMeta: {
+          title: "Generated Website",
+          description: "Website generated by Brix.AI"
+        }
       };
     } catch (error) {
       console.error('All parsing attempts failed:', error);
-      console.log('Raw text from AI:', text.substring(0, 500) + '...');
-      throw new Error(`Failed to parse AI response into JSON: ${error.message}`);
+      console.log('Raw text from AI (first 500 chars):', text.substring(0, 500) + '...');
+      
+      // Return a minimal valid structure rather than throwing
+      return {
+        sections: [
+          {
+            title: "Generated Content",
+            content: text.replace(/```/g, '').replace(/json/g, ''),
+            design: {
+              layout: "flex"
+            }
+          }
+        ],
+        globalMeta: {
+          title: "Generated Website",
+          description: "Website created with Brix.AI"
+        }
+      };
     }
   }
 };
+
+// Helper function to process content array
+function processContentArray(contentArray) {
+  if (!contentArray || !Array.isArray(contentArray)) return '';
+  
+  return contentArray.map(item => {
+    if (item.type === 'paragraph') {
+      return processMarkdownContent(item.text || '');
+    } else if (item.type === 'subsection') {
+      return `<h3>${item.title || ''}</h3>${processContentArray(item.content || [])}`;
+    }
+    return '';
+  }).join('\n\n');
+}
 
 // Helper function to process markdown content
 function processMarkdownContent(content) {
@@ -277,35 +381,26 @@ function processMarkdownContent(content) {
   return content;
 }
 
-app.post('/generate', async (req, res) => {
+// Store active SSE connections
+const connections = new Map();
+
+// Function to generate website with progress updates via SSE
+async function generateWebsite(prompt, res, websiteType = 'business', colorScheme = 'modern', style = 'minimal', brandTone = 'professional') {
   try {
-    console.log('Received generate request:', JSON.stringify(req.body, null, 2).substring(0, 500) + '...');
-    const { 
-      prompt,
-      websiteType = 'business',
-      colorScheme = 'modern',
-      style = 'minimal',
-      brandTone = 'professional'
-    } = req.body;
-
-    if (!prompt) {
-      return res.status(400).json({ error: 'Prompt is required' });
-    }
-
-    // Verify API key before making requests
-    if (!process.env.GEMINI_API_KEY) {
-      return res.status(500).json({ error: 'API key not configured' });
-    }
-
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
+    // Use the getThemeColors and analyzePromptForTheme functions that are already defined
     const detectedTheme = analyzePromptForTheme(prompt);
     const colors = getThemeColors(prompt);
+    
+    // Store the original prompt for consistent reference
+    const originalPrompt = prompt;
 
-    console.log('Using theme:', detectedTheme);
+    // Send progress update to all clients
+    sendToAllClients({ type: 'step', message: "Starting website generation..." });
 
     // Updated content prompt with explicit instruction on color scheme
     const contentPrompt = `
-Generate a modern, dynamic website for a ${websiteType} using Tailwind CSS with the following details:
+Generate a minimalistic, Neumorphism website for a ${websiteType} using Tailwind CSS with the following details:
 "${prompt}"
 
 Requirements:
@@ -318,9 +413,9 @@ Requirements:
 7. Consider responsive design and a mobile-first approach.
 8. Include meta descriptions and title tags.
 9. Suggest image descriptions and placements.
-10. Only create forms if explicitly requested.
+10. Create a form for the contact section.
 11. Specify interactive elements and animations.
-12. Ensure the design is modern with smooth animations and transitions.
+12. Ensure the design is minimalistic with smooth animations and transitions.
 13. Implement dynamic animations using JavaScript and make sure they work for:
     - Scroll-triggered animations.
     - Hover effects with transitions.
@@ -333,7 +428,7 @@ Requirements:
 16. For the hero section, if possible, generate typing effects to display the main headline dynamically and provide the javascript for it.
 17. Ensure performance optimizations such as lazy loading, optimized images with blur placeholders, and code splitting suggestions.
 
-Return the response in valid JSON format with this structure:
+I need the response to be in clean, parseable JSON format with this structure:
 {
   "sections": [
     {
@@ -353,7 +448,7 @@ Return the response in valid JSON format with this structure:
           "entry": "fade|slide|zoom",
           "scroll": "reveal|parallel",
           "hover": "scale|glow",
-          "typing": "enabled" // if applicable in the hero section
+          "typing": "enabled"
         },
         "interactions": {
           "buttons": "hover:scale|hover:glow",
@@ -370,7 +465,10 @@ Return the response in valid JSON format with this structure:
     "title": "site title",
     "description": "site description"
   }
-}`;
+}
+
+IMPORTANT: Return ONLY pure JSON with no markdown formatting, no code blocks (\`\`\`) and no explanation text. Just the raw JSON object. The response must be directly parseable with JSON.parse().
+`;
 
     console.log('Sending content prompt to Gemini API...');
     const contentResult = await withRetry(() => model.generateContent(contentPrompt));
@@ -378,11 +476,33 @@ Return the response in valid JSON format with this structure:
     const contentResponse = await contentResult.response;
     console.log('Received content response, length:', contentResponse.text().length);
     
-    const generatedContent = ensureJsonResponse(contentResponse.text());
-    console.log('Successfully parsed content JSON');
+    // Log the first part of the response to help debugging
+    const responseText = contentResponse.text();
+    console.log('Response starts with:', responseText.substring(0, 100).replace(/\n/g, '\\n'));
+    
+    let generatedContent;
+    try {
+      generatedContent = ensureJsonResponse(responseText);
+      console.log('Successfully parsed content JSON');
+    } catch (parseError) {
+      console.error('Failed to parse content JSON:', parseError);
+      generatedContent = {
+        sections: [
+          {
+            title: "Generated Content",
+            content: responseText.replace(/```/g, '').replace(/json/g, ''),
+            design: { layout: "flex" }
+          }
+        ],
+        globalMeta: {
+          title: "Generated Website",
+          description: "Website created with Brix.AI"
+        }
+      };
+    }
 
     const websitePrompt = `
-Generate a complete, modern website using Tailwind CSS for this content: ${JSON.stringify(generatedContent)}
+Generate a complete, minimalistic,Neumorphism website using Tailwind CSS for this content: ${JSON.stringify(generatedContent)}
 
 Technical Requirements:
 1. Use semantic HTML5 elements.
@@ -413,7 +533,8 @@ Technical Requirements:
 10. Include proper meta tags and structured data.
 11. For images display a placeholder saying "Put Image here".
 12. Ensure JavaScript-based animations are included for dynamic interactions.
-Return only the complete HTML code with embedded Tailwind CSS classes and necessary JavaScript.`;
+
+Return only the complete HTML code with embedded Tailwind CSS classes and necessary JavaScript. DO NOT include any markdown formatting or code blocks - just the raw HTML.`;
 
     console.log('Sending website prompt to Gemini API...');
     const websiteResult = await withRetry(() => model.generateContent(websitePrompt));
@@ -421,9 +542,42 @@ Return only the complete HTML code with embedded Tailwind CSS classes and necess
     const websiteResponse = await websiteResult.response;
     console.log('Received website response, length:', websiteResponse.text().length);
     
-    const generatedCode = websiteResponse.text().replace(/html\n?|\n?/g, '').trim();
-    console.log('Generated code length:', generatedCode.length);
+    // Get the raw response text
+    let rawResponse = websiteResponse.text();
+    
+    // Log the first part to help with debugging
+    console.log('Website response starts with:', rawResponse.substring(0, 100).replace(/\n/g, '\\n'));
+    
+    // Check if the response is wrapped in markdown code blocks and extract the HTML
+    let generatedCode = rawResponse;
+    
+    // Remove markdown code blocks if present
+    if (rawResponse.includes('```html') || rawResponse.includes('```')) {
+      const htmlMatch = rawResponse.match(/```(?:html)?\s*([\s\S]*?)```/);
+      if (htmlMatch) {
+        console.log('Found HTML in markdown code block');
+        generatedCode = htmlMatch[1].trim();
+      }
+    }
+    
+    // Clean up any non-HTML prefixes or explanatory text
+    if (!generatedCode.trim().startsWith('<!DOCTYPE') && !generatedCode.trim().startsWith('<html')) {
+      const htmlStart = generatedCode.indexOf('<!DOCTYPE') > -1 ? 
+                        generatedCode.indexOf('<!DOCTYPE') : 
+                        generatedCode.indexOf('<html');
+      
+      if (htmlStart > -1) {
+        console.log('Found HTML starting at position:', htmlStart);
+        generatedCode = generatedCode.substring(htmlStart);
+      }
+    }
+    
+    // Simplify doctype if needed
+    generatedCode = generatedCode.replace(/<!DOCTYPE[^>]*>/i, '<!DOCTYPE html>');
+    
+    console.log('Processed code length:', generatedCode.length);
 
+    // Process the generated code to add additional features and fixes
     const processedCode = generatedCode
       .replace(/placehold\.co/g, 'picsum.photos')
       .replace(/<head>/, `
@@ -468,149 +622,218 @@ Return only the complete HTML code with embedded Tailwind CSS classes and necess
               }
             }
           </script>
-      `)
-      .replace('</body>', `
-          <script>
-            // Initialize GSAP
-            gsap.registerPlugin(ScrollTrigger);
-
-            // Animate elements on page load
-            window.addEventListener('load', () => {
-              // Hero section animation
-              gsap.from('[data-animate="hero"]', {
-                duration: 1,
-                y: 100,
-                opacity: 0,
-                ease: "power4.out"
-              });
-
-              // Animate sections on scroll
-              gsap.utils.toArray('[data-animate="section"]').forEach((section, i) => {
-                gsap.from(section, {
-                  scrollTrigger: {
-                    trigger: section,
-                    start: "top 80%",
-                    toggleActions: "play none none reverse"
-                  },
-                  y: 60,
-                  opacity: 0,
-                  duration: 1,
-                  ease: "power2.out"
-                });
-              });
-
-              // Animate cards with stagger
-              gsap.utils.toArray('[data-animate="card"]').forEach((cards) => {
-                gsap.from(cards, {
-                  scrollTrigger: {
-                    trigger: cards,
-                    start: "top 85%"
-                  },
-                  y: 40,
-                  opacity: 0,
-                  duration: 0.6,
-                  stagger: 0.2,
-                  ease: "power2.out"
-                });
-              });
-
-              // Parallax effect for background elements
-              gsap.utils.toArray('[data-parallax]').forEach((element) => {
-                gsap.to(element, {
-                  scrollTrigger: {
-                    trigger: element,
-                    scrub: true
-                  },
-                  y: (i, target) => -100 * target.dataset.speed,
-                  ease: "none"
-                });
-              });
-            });
-
-            // Smooth scroll
-            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
-              anchor.addEventListener('click', function (e) {
-                e.preventDefault();
-                document.querySelector(this.getAttribute('href')).scrollIntoView({
-                  behavior: 'smooth'
-                });
-              });
-            });
-
-            // Mobile menu with animation
-            const mobileMenu = document.querySelector('[data-mobile-menu]');
-            const mobileMenuButton = document.querySelector('[data-mobile-menu-button]');
-            if (mobileMenuButton) {
-              mobileMenuButton.addEventListener('click', () => {
-                mobileMenu.classList.toggle('hidden');
-                gsap.from('[data-mobile-menu] > *', {
-                  y: -20,
-                  opacity: 0,
-                  duration: 0.3,
-                  stagger: 0.1,
-                  ease: "power2.out"
-                });
-              });
+          <style>
+            /* Fix any coffee-* classes by replacing them with primary/secondary/etc */
+            .text-coffee-dark { color: var(--color-primary) !important; }
+            .text-coffee-medium { color: var(--color-secondary) !important; }
+            .bg-coffee-dark { background-color: var(--color-primary) !important; }
+            .bg-coffee-medium { background-color: var(--color-secondary) !important; }
+            .bg-coffee-lightest { background-color: var(--color-background) !important; }
+            .bg-coffee-lighter { background-color: var(--color-accent) !important; }
+            .hover\\:bg-coffee-dark:hover { background-color: var(--color-primary) !important; }
+            .hover\\:bg-coffee-medium:hover { background-color: var(--color-secondary) !important; }
+            .hover\\:text-coffee-medium:hover { color: var(--color-secondary) !important; }
+            .border-coffee-medium { border-color: var(--color-secondary) !important; }
+            
+            :root {
+              --color-primary: ${colors.primary || '#3d2c22'};
+              --color-secondary: ${colors.secondary || '#70543e'};
+              --color-accent: ${colors.accent || '#e6d8c9'};
+              --color-background: ${colors.background || '#f7f3ed'};
+              --color-text: ${colors.text || '#3d2c22'};
             }
+            
+            body {
+              color: var(--color-text);
+              background-color: var(--color-background);
+            }
+          </style>
+      `)
 
-            // Add hover animations for interactive elements
-            const addHoverAnimation = (elements, scale = 1.05) => {
-              elements.forEach(el => {
-                el.addEventListener('mouseenter', () => {
-                  gsap.to(el, { scale: scale, duration: 0.3, ease: "power2.out" });
-                });
-                el.addEventListener('mouseleave', () => {
-                  gsap.to(el, { scale: 1, duration: 0.3, ease: "power2.out" });
-                });
-              });
-            };
+    // Extract the main content from between <body> and </body>
+    let mainContent = processedCode.match(/<body[^>]*>([\s\S]*)<\/body>/i);
+    mainContent = mainContent ? mainContent[1] : processedCode;
 
-            // Apply hover animations to buttons and cards
-            addHoverAnimation(document.querySelectorAll('[data-hover="button"]'), 1.05);
-            addHoverAnimation(document.querySelectorAll('[data-hover="card"]'), 1.03);
+    // Generate a properly structured website with our template
+    const structuredWebsite = generateTemplate({
+      colors: colors,
+      title: generatedContent.globalMeta?.title || 'Website Generated by Brix.AI',
+      meta: generatedContent.globalMeta || {}
+    }, mainContent);
 
-            // Initialize counters if they exist
-            const animateCounter = (element) => {
-              const target = parseInt(element.dataset.target);
-              gsap.to(element, {
-                textContent: target,
-                duration: 2,
-                ease: "power2.out",
-                snap: { textContent: 1 },
-                scrollTrigger: {
-                  trigger: element,
-                  start: "top 80%"
-                }
-              });
-            };
-
-            document.querySelectorAll('[data-counter]').forEach(animateCounter);
-          </script>
-        </body>
-      `);
-
-    res.json({ 
-      code: processedCode,
-      content: generatedContent,
-      metadata: {
-        type: websiteType,
-        colorScheme,
-        style,
-        brandTone,
-        generated: new Date().toISOString(),
-        features: websiteTemplates[websiteType]?.features || [],
-        defaultClasses: websiteTemplates[websiteType]?.defaultClasses || {}
+    // Send both 'completion' and 'complete' events to ensure the client receives it
+    sendToAllClients({ 
+      type: 'completion', 
+      data: {
+        code: structuredWebsite,
+        content: generatedContent,
+        metadata: {
+          type: websiteType,
+          colorScheme,
+          style,
+          brandTone,
+          generated: new Date().toISOString(),
+          features: websiteTemplates[websiteType]?.features || [],
+          defaultClasses: websiteTemplates[websiteType]?.defaultClasses || {}
+        }
       }
     });
+    
+    // Also send with simplified structure in case frontend expects it this way
+    sendToAllClients({ 
+      type: 'complete', 
+      code: structuredWebsite,
+      content: generatedContent,
+      metadata: {
+        type: websiteType
+      }
+    });
+    
+    console.log('Website generation completed successfully');
   } catch (error) {
     console.error('Error in /generate endpoint:', error);
-    res.status(500).json({ 
-      error: 'Failed to generate website', 
+    // Send error via SSE instead of using res directly
+    sendToAllClients({ 
+      type: 'error', 
+      message: 'Failed to generate website', 
       details: error.message,
       stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
+}
+
+// Add middleware to log all requests
+app.use((req, res, next) => {
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.url}`);
+  next();
 });
+
+// SSE endpoint for real-time progress updates during website generation
+const DEBUG_SSE = true;
+
+app.get('/generate-sse', (req, res) => {
+  const clientId = Date.now();
+  
+  if (DEBUG_SSE) {
+    console.log(`SSE connection request received from client ${clientId}`);
+    console.log(`Request headers:`, req.headers);
+  }
+  
+  // Set headers for SSE
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache',
+    'Connection': 'keep-alive',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Origin, X-Requested-With, Content-Type, Accept',
+    'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS'
+  });
+  
+  // Send a heartbeat immediately to keep the connection alive
+  res.write(': heartbeat\n\n');
+  
+  // Send a connection established message
+  res.write(`data: ${JSON.stringify({ type: 'connected', message: 'SSE connection established', id: clientId })}\n\n`);
+  
+  if (DEBUG_SSE) {
+    console.log(`Initial SSE messages sent to client ${clientId}`);
+  }
+  
+  // Store the connection
+  connections.set(clientId, res);
+  
+  // Set up a heartbeat to keep the connection alive
+  const heartbeat = setInterval(() => {
+    try {
+      res.write(': heartbeat\n\n');
+      if (DEBUG_SSE && Math.random() < 0.1) {  // Only log occasionally to avoid spam
+        console.log(`Heartbeat sent to client ${clientId}`);
+      }
+    } catch (error) {
+      console.error(`Error sending heartbeat to client ${clientId}:`, error);
+      clearInterval(heartbeat);
+      connections.delete(clientId);
+    }
+  }, 30000); // Send a heartbeat every 30 seconds
+  
+  // Handle client disconnect
+  req.on('close', () => {
+    clearInterval(heartbeat);
+    connections.delete(clientId);
+    console.log(`Client ${clientId} disconnected from SSE`);
+  });
+  
+  if (DEBUG_SSE) {
+    console.log(`Client ${clientId} connected to SSE - connection active`);
+    console.log(`Total active SSE connections: ${connections.size}`);
+  }
+});
+
+// Endpoint to check server status
+app.get('/', (req, res) => {
+  res.json({ 
+    status: 'online',
+    message: 'Brix.AI server is running',
+    endpoints: [
+      '/generate-sse - Server-Sent Events endpoint',
+      '/start-generation - Generate website endpoint',
+      '/chat - Chat endpoint',
+      '/test - Test endpoint',
+      '/color-schemes - Get color schemes',
+      '/templates - Get templates'
+    ]
+  });
+});
+
+// Start the website generation process
+app.post('/start-generation', async (req, res) => {
+  try {
+    const { prompt } = req.body;
+    
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+    
+    console.log(`Starting website generation with prompt: "${prompt.substring(0, 30)}..."`);
+    
+    // Acknowledge the request immediately
+    res.status(200).json({ message: 'Generation started' });
+    
+    // Start the generation process in the background
+    generateWebsite(prompt, res);
+  } catch (error) {
+    console.error('Error starting generation:', error);
+    res.status(500).json({ error: 'Failed to start generation', details: error.message });
+  }
+});
+
+// Helper function to send updates to all connected clients
+function sendToAllClients(data) {
+  console.log(`Sending to ${connections.size} clients: ${data.type}`);
+  if (connections.size === 0) {
+    console.warn('No active SSE connections to send data to');
+  }
+  
+  const formattedData = data.type === 'completion' ? {
+    ...data,
+    // Ensure code is properly serialized if it exists
+    data: {
+      ...data.data,
+      code: data.data.code,
+      content: data.data.content
+    }
+  } : data;
+  
+  connections.forEach((client, clientId) => {
+    try {
+      client.write(`data: ${JSON.stringify(formattedData)}\n\n`);
+    } catch (error) {
+      console.error(`Error sending data to client ${clientId}:`, error);
+      // Clean up broken connections
+      connections.delete(clientId);
+    }
+  });
+}
 
 app.get('/color-schemes', (req, res) => {
   res.json(themeKeywords);
@@ -697,7 +920,7 @@ Always be helpful, friendly, and respect the user's choice. Remember previous pa
         console.log('Successfully generated response with context');
         
         res.json({ 
-          message: response.text(),
+          response: response.text(),
           timestamp: new Date().toISOString()
         });
       } catch (contextError) {
@@ -720,7 +943,7 @@ Provide a clear, and helpful response, keeping it focused and direct. Remember t
         console.log('Used fallback approach due to context error');
         
         res.json({ 
-          message: response.text(),
+          response: response.text(),
           timestamp: new Date().toISOString()
         });
       }
@@ -743,7 +966,7 @@ Keep your response friendly, clear, and focused on helping the user generate the
       const response = await result.response;
       
       res.json({ 
-        message: response.text(),
+        response: response.text(),
         timestamp: new Date().toISOString()
       });
     }
@@ -757,7 +980,7 @@ Keep your response friendly, clear, and focused on helping the user generate the
 });
 
 app.listen(port, () => {
-  console.log(`Brix.AI Server running at http://localhost:${port}`);
+  console.log(`Brix.AI Server running on port ${port}`);
   console.log(`API key configured: ${process.env.GEMINI_API_KEY ? 'Yes' : 'No'}`);
   console.log(`Supported color schemes: ${Object.keys(themeKeywords).join(', ')}`);
 });
