@@ -1,0 +1,148 @@
+```json
+{
+  "selected_template": "portfolio_v1",
+  "meta": {
+    "title": "Jane Dawson - MBA Portfolio",
+    "description": "Professional portfolio website for Jane Dawson, MBA candidate."
+  },
+  "content_structure": {
+    "header": {
+      "component": "header_nav",
+      "content": {
+        "company_name": "Jane Dawson",
+        "logo": "",
+        "navigation_links": [
+          { "text": "About", "url": "#about" },
+          { "text": "Experience", "url": "#experience" },
+          { "text": "Projects", "url": "#projects" },
+          { "text": "Contact", "url": "#contact" }
+        ],
+        "cta_button": {
+          "text": "Download Resume",
+          "url": "#resume"
+        }
+      }
+    },
+    "sections": [
+      {
+        "id": "hero",
+        "suggested_component": "hero_split",
+        "generated_content": {
+          "heading": "Jane Dawson - MBA Candidate",
+          "subheading": "Driven MBA candidate with a passion for innovation and strategic problem-solving.",
+          "primary_button": {
+            "text": "Learn More",
+            "url": "#about"
+          },
+          "secondary_button": {
+            "text": "View Projects",
+            "url": "#projects"
+          },
+          "image": "path/to/professional/image.jpg"
+        }
+      },
+      {
+        "id": "about",
+        "suggested_component": "features_cards",
+        "generated_content": {
+          "title": "About Me",
+          "description": "A brief overview of Jane Dawson's background and aspirations.",
+          "cards": [
+            {
+              "title": "Education",
+              "content": "Currently pursuing an MBA at [University Name].",
+              "icon": "education"
+            },
+            {
+              "title": "Skills",
+              "content": "Proficient in strategic analysis, financial modeling, and leadership.",
+              "icon": "skills"
+            },
+            {
+              "title": "Goals",
+              "content": "Aspiring to contribute to a dynamic organization and drive impactful change.",
+              "icon": "goals"
+            }
+          ]
+        }
+      },
+      {
+        "id": "experience",
+        "suggested_component": "features_grid",
+        "generated_content": {
+          "title": "Professional Experience",
+          "description": "Highlights of Jane Dawson's work experience.",
+          "features": [
+            {
+              "title": "[Company Name]",
+              "subtitle": "[Job Title]",
+              "description": "[Brief description of responsibilities and achievements]",
+              "image": "path/to/company/logo.png"
+            }
+          ]
+        }
+      },
+      {
+        "id": "projects",
+        "suggested_component": "portfolio_grid",
+        "generated_content": {
+          "title": "Projects",
+          "description": "A showcase of Jane Dawson's key projects and accomplishments.",
+          "projects": [
+            {
+              "title": "[Project Name]",
+              "description": "[Brief project description]",
+              "image": "path/to/project/image.png",
+              "url": "[Project URL]"
+            }
+          ]
+        }
+      },
+      {
+        "id": "contact",
+        "suggested_component": "contact_form",
+        "generated_content": {
+          "title": "Contact Me",
+          "description": "Get in touch with Jane Dawson.",
+          "form_fields": [
+            { "label": "Name", "type": "text", "required": true },
+            { "label": "Email", "type": "email", "required": true },
+            { "label": "Message", "type": "textarea", "required": true }
+          ],
+          "submit_button_text": "Send Message"
+        }
+      }
+    ],
+    "footer": {
+      "component": "footer_standard",
+      "content": {
+        "company_name": "Jane Dawson",
+        "company_description": "MBA Candidate | Aspiring Leader",
+        "social_links": [
+          { "platform": "linkedin", "url": "https://www.linkedin.com/in/[your_linkedin_profile]" },
+          { "platform": "github", "url": "https://github.com/[your_github_profile]" }
+        ],
+        "current_year": 2024
+      }
+    }
+  },
+  "theme_configuration": {
+    "colors": {
+      "primary": "#374151",
+      "secondary": "#4b5563",
+      "accent": "#2563eb",
+      "background": "#f9fafb",
+      "text": "#111827"
+    },
+    "fonts": {
+      "primary": "Roboto",
+      "heading": "Roboto"
+    },
+    "design_style": "corporate",
+    "spacing": "structured",
+    "effects": "professional",
+    "shadows": "subtle",
+    "borders": "clean"
+  }
+}
+```

@@ -110,95 +110,33 @@ export default function Home() {
         console.log('SSE connection opened successfully');
       };
       
-      // Store the clientId when it's received from the server
-      let clientId: string | null = null;
-      
       eventSource.current.onmessage = (event) => {
         console.log('SSE message received:', event.data);
         try {
           const data = JSON.parse(event.data);
           
-          if (data.type === 'step' || data.type === 'progress') {
+          if (data.type === 'step') {
             setGenerationSteps(prev => [...prev, data.message]);
           } else if (data.type === 'complete') {
-            console.log('Generation complete, received HTML:', data.html ? data.html.substring(0, 100) + '...' : 'none');
+            setGeneratedCode(data.code);
+            setPreview(data.code);
+            setShowPreview(true);
             
-            if (data.html) {
-              setGeneratedCode(data.html);
-              setPreview(data.html);
-              setShowPreview(true);
-              
-              // Add assistant message to chat
-              const assistantMessage: ChatMessage = {
-                id: Date.now().toString() + '-response',
-                content: "I've generated your website based on your description. You can view it in the preview panel.",
-                role: 'assistant',
-                timestamp: new Date()
-              };
-              setChatMessages(prev => [...prev, assistantMessage]);
-            } else {
-              console.error('No HTML received in complete message');
-              
-              // Add error message to chat
-              const errorMessage: ChatMessage = {
-                id: Date.now().toString() + '-error',
-                content: "Sorry, I couldn't generate the website properly. Please try again.",
-                role: 'assistant',
-                timestamp: new Date()
-              };
-              setChatMessages(prev => [...prev, errorMessage]);
-            }
+            // Add assistant message to chat
+            const assistantMessage: ChatMessage = {
+              id: Date.now().toString() + '-response',
+              content: "I've generated your website based on your description. You can view it in the preview panel.",
+              role: 'assistant',
+              timestamp: new Date()
+            };
+            setChatMessages(prev => [...prev, assistantMessage]);
             
             // Close the connection
             eventSource.current?.close();
             eventSource.current = null;
             setLoading(false);
           } else if (data.type === 'connected') {
-            console.log('SSE connection established, clientId:', data.clientId);
-            clientId = data.clientId; // Store the clientId from the server
-            
-            // After receiving the clientId, send the prompt to start generation
-            if (clientId) {
-              sendPromptToServer(clientId);
-            } else {
-              console.error('No clientId received from server');
-              // Handle the error appropriately
-              eventSource.current?.close();
-              eventSource.current = null;
-              setLoading(false);
-              
-              const errorMessage: ChatMessage = {
-                id: Date.now().toString() + '-error',
-                content: "Sorry, I couldn't generate the website. Failed to establish a connection with the server.",
-                role: 'assistant',
-                timestamp: new Date()
-              };
-              setChatMessages(prev => [...prev, errorMessage]);
-            }
-          } else if (data.type === 'error') {
-            console.error('Server reported an error:', data.message);
-            
-            // Add error message to chat
-            const errorMessage: ChatMessage = {
-              id: Date.now().toString() + '-error',
-              content: data.message || "Sorry, I encountered an error while generating your website.",
-              role: 'assistant',
-              timestamp: new Date()
-            };
-            setChatMessages(prev => [...prev, errorMessage]);
-            
-            // Close the connection
-            eventSource.current?.close();
-            eventSource.current = null;
-            setLoading(false);
-          } else if (data.type === 'info') {
-            console.log('Server info:', data.message);
-            // Optional: display info message to user
-          } else if (data.type === 'heartbeat') {
-            // Heartbeat received, connection is alive
-            console.log('Heartbeat received from server');
-          } else {
-            console.log('Unknown message type received:', data.type);
+            console.log('SSE connection established:', data.message);
           }
         } catch (parseError) {
           console.error('Error parsing SSE message:', parseError, event.data);
@@ -225,6 +163,43 @@ export default function Home() {
         setChatMessages(prev => [...prev, errorMessage]);
       };
       
+      // Send the prompt to the server
+      try {
+        const response = await fetch('http://localhost:3001/start-generation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ prompt }),
+      });
+      
+      if (!response.ok) {
+          console.error(`HTTP error: ${response.status}`);
+          throw new Error(`Failed to start generation process. Status: ${response.status}`);
+        }
+        
+        // Clear the prompt to prepare for chat mode
+        setPrompt('');
+      } catch (fetchError) {
+        console.error('Fetch error:', fetchError);
+        // Close any existing connection if the fetch fails
+        if (eventSource.current) {
+          eventSource.current.close();
+          eventSource.current = null;
+        }
+        
+        setLoading(false);
+        
+        // Show error message in chat
+        const errorMessage: ChatMessage = {
+          id: Date.now().toString() + '-error',
+          content: "Sorry, I couldn't connect to the generation service. Please try again later.",
+          role: 'assistant',
+          timestamp: new Date()
+        };
+        setChatMessages(prev => [...prev, errorMessage]);
+      }
+      
     } catch (error) {
       console.error('Error generating website:', error);
       setLoading(false);
@@ -238,45 +213,6 @@ export default function Home() {
       const errorMessage: ChatMessage = {
         id: Date.now().toString() + '-error',
         content: "Sorry, I couldn't generate the website. Please try again later.",
-        role: 'assistant',
-        timestamp: new Date()
-      };
-      setChatMessages(prev => [...prev, errorMessage]);
-    }
-  };
-  
-  // Helper function to send the prompt to the server after establishing SSE connection
-  const sendPromptToServer = async (clientId: string) => {
-    try {
-      const response = await fetch('http://localhost:3001/start-generation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ prompt, clientId }),
-      });
-      
-      if (!response.ok) {
-        console.error(`HTTP error: ${response.status}`);
-        throw new Error(`Failed to start generation process. Status: ${response.status}`);
-      }
-      
-      // Clear the prompt to prepare for chat mode
-      setPrompt('');
-    } catch (fetchError) {
-      console.error('Fetch error:', fetchError);
-      // Close any existing connection if the fetch fails
-      if (eventSource.current) {
-        eventSource.current.close();
-        eventSource.current = null;
-      }
-      
-      setLoading(false);
-      
-      // Show error message in chat
-      const errorMessage: ChatMessage = {
-        id: Date.now().toString() + '-error',
-        content: "Sorry, I couldn't connect to the generation service. Please try again later.",
         role: 'assistant',
         timestamp: new Date()
       };
@@ -790,10 +726,10 @@ export default function Home() {
                 <Link href={"/about"} className="flex items-center">
                   <h1 className="text-xl font-bold tracking-tight flex items-center">
                     brix<span className="text-blue-500">.</span><span className="text-blue-500 ml-1">ai</span>
-                  </h1>
-                </Link>
+                    </h1>
+                  </Link>
               </div>
-              
+
               <div className="flex items-center">
                 <Link href="/account" className="group flex items-center border-b border-transparent hover:border-white pb-1 transition-colors mr-4">
                   <User className="w-4 h-4 mr-2" />
@@ -809,7 +745,7 @@ export default function Home() {
                   </svg>
                 </button>
               </div>
-            </div>
+              </div>
 
             {/* Main content area */}
             <div className="flex-1 relative z-10 flex">
@@ -974,14 +910,14 @@ export default function Home() {
                         className="flex gap-2 relative"
                       >
                         <div className="relative flex-1 bg-zinc-800 hover:bg-zinc-700/80 focus-within:bg-zinc-700 transition-colors duration-200 rounded-xl border border-zinc-700">
-                          <textarea
+                      <textarea
                             className="w-full bg-transparent text-white p-4 pr-12 outline-none resize-none max-h-32 overflow-auto"
                             placeholder={inputMode === 'generate' 
                               ? "Describe the website you want to create..." 
                               : "Ask me anything about web development..."
                             }
-                            value={prompt}
-                            onChange={(e) => setPrompt(e.target.value)}
+                        value={prompt}
+                        onChange={(e) => setPrompt(e.target.value)}
                             rows={1}
                             onKeyDown={(e) => {
                               if (e.key === 'Enter' && !e.shiftKey) {
@@ -991,88 +927,88 @@ export default function Home() {
                                 }
                               }
                             }}
-                          />
-                          <button
+                      />
+                      <button
                             type="submit"
-                            disabled={loading || !prompt.trim()}
+                        disabled={loading || !prompt.trim()}
                             className={`absolute right-2 bottom-2 p-2 rounded-lg transition-all duration-200 ${
-                              loading || !prompt.trim() 
+                          loading || !prompt.trim() 
                                 ? 'text-gray-500 cursor-not-allowed' 
                                 : 'text-blue-400 hover:text-blue-300 hover:bg-blue-500/20'
-                            }`}
-                          >
-                            {loading ? (
+                        }`}
+                      >
+                        {loading ? (
                               <Loader2 className="w-6 h-6 animate-spin" />
-                            ) : (
+                        ) : (
                               <ChevronRight className="w-6 h-6" />
-                            )}
-                          </button>
+                        )}
+                      </button>
                         </div>
                       </form>
                     </div>
                   </div>
-                </div>
-              </div>
+                    </div>
+                  </div>
 
               {/* Preview Panel - Right Side */}
               {showPreview && generatedCode && (
                 <div className="w-1/2 border-l border-zinc-800 bg-zinc-900/60 backdrop-blur-sm flex flex-col">
                   <div className="flex justify-between items-center border-b border-zinc-800 p-3">
                     <div className="flex space-x-2">
-                      <button
-                        onClick={() => setActiveTab('preview')}
+                          <button
+                            onClick={() => setActiveTab('preview')}
                         className={`py-1.5 px-3 rounded-md text-sm font-medium flex items-center ${
-                          activeTab === 'preview'
+                              activeTab === 'preview'
                             ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
                             : 'text-gray-400 hover:bg-zinc-800'
-                        }`}
-                      >
+                            }`}
+                          >
                         <Laptop className="w-4 h-4 mr-1.5" />
-                        Preview
-                      </button>
-                      <button
-                        onClick={() => setActiveTab('code')}
+                            Preview
+                          </button>
+                          <button
+                            onClick={() => setActiveTab('code')}
                         className={`py-1.5 px-3 rounded-md text-sm font-medium flex items-center ${
-                          activeTab === 'code'
+                              activeTab === 'code'
                             ? 'bg-blue-600/20 text-blue-400 border border-blue-500/30'
                             : 'text-gray-400 hover:bg-zinc-800'
-                        }`}
-                      >
+                            }`}
+                          >
                         <Code className="w-4 h-4 mr-1.5" />
-                        Code
-                      </button>
+                            Code
+                          </button>
                     </div>
 
                     {/* View controls */}
                     <div className="flex items-center space-x-2">
-                      {activeTab === 'preview' && (
+                        {activeTab === 'preview' && (
                         <div className="flex items-center space-x-2 bg-zinc-800 rounded-md p-1 mr-2">
-                          <button
-                            onClick={() => setPreviewMode('wide')}
+                            <button
+                              onClick={() => setPreviewMode('wide')}
                             className={`p-1.5 rounded flex items-center text-xs ${
-                              previewMode === 'wide' 
-                                ? 'bg-blue-500/20 text-blue-400' 
-                                : 'text-gray-400 hover:bg-zinc-700'
-                            }`}
-                            title="Desktop/Laptop View"
-                          >
+                                previewMode === 'wide' 
+                                  ? 'bg-blue-500/20 text-blue-400' 
+                                  : 'text-gray-400 hover:bg-zinc-700'
+                              }`}
+                              title="Desktop/Laptop View"
+                            >
                             <Laptop className="w-3.5 h-3.5 mr-1" />
                             <span className="hidden sm:inline">Wide</span>
-                          </button>
-                          <button
-                            onClick={() => setPreviewMode('mobile')}
+                            </button>
+                            <button
+                              onClick={() => setPreviewMode('mobile')}
                             className={`p-1.5 rounded flex items-center text-xs ${
-                              previewMode === 'mobile' 
-                                ? 'bg-blue-500/20 text-blue-400' 
-                                : 'text-gray-400 hover:bg-zinc-700'
-                            }`}
-                            title="Mobile View"
-                          >
+                                previewMode === 'mobile' 
+                                  ? 'bg-blue-500/20 text-blue-400' 
+                                  : 'text-gray-400 hover:bg-zinc-700'
+                              }`}
+                              title="Mobile View"
+                            >
                             <Smartphone className="w-3.5 h-3.5 mr-1" />
                             <span className="hidden sm:inline">Mobile</span>
-                          </button>
-                        </div>
-                      )}
+                            </button>
+                          </div>
+                        )}
                       
                       <button
                         onClick={togglePreview}
@@ -1084,82 +1020,82 @@ export default function Home() {
                         </svg>
                       </button>
                     </div>
-                  </div>
+                      </div>
 
                   {/* Preview/Code content */}
                   <div className="flex-1 overflow-hidden">
-                    {activeTab === 'preview' ? (
+                      {activeTab === 'preview' ? (
                       <div className={`h-full flex justify-center items-center ${previewMode === 'mobile' ? 'bg-zinc-800/30 p-4' : ''}`}>
-                        <div 
-                          className={
-                            previewMode === 'mobile'
-                              ? 'w-[375px] h-[667px] relative border-8 border-zinc-700 rounded-[36px] overflow-hidden shadow-lg'
-                              : 'w-full h-full'
-                          }
-                        >
-                          {previewMode === 'mobile' && (
-                            <>
-                              {/* Notch for mobile view */}
-                              <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-24 h-6 bg-zinc-700 rounded-b-lg z-10"></div>
-                              {/* Home indicator for mobile view */}
-                              <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-zinc-600 rounded-full z-10"></div>
-                            </>
-                          )}
-                          <iframe
-                            ref={iframeRef}
-                            srcDoc={preview}
-                            className={`border-0 bg-white ${
+                          <div 
+                            className={
                               previewMode === 'mobile'
-                                ? 'w-full h-full'
+                                ? 'w-[375px] h-[667px] relative border-8 border-zinc-700 rounded-[36px] overflow-hidden shadow-lg'
+                              : 'w-full h-full'
+                            }
+                          >
+                            {previewMode === 'mobile' && (
+                              <>
+                                {/* Notch for mobile view */}
+                                <div className="absolute top-0 left-1/2 transform -translate-x-1/2 w-24 h-6 bg-zinc-700 rounded-b-lg z-10"></div>
+                                {/* Home indicator for mobile view */}
+                                <div className="absolute bottom-1 left-1/2 transform -translate-x-1/2 w-16 h-1 bg-zinc-600 rounded-full z-10"></div>
+                              </>
+                            )}
+                            <iframe
+                              ref={iframeRef}
+                              srcDoc={preview}
+                              className={`border-0 bg-white ${
+                                previewMode === 'mobile'
+                                  ? 'w-full h-full'
                                 : 'w-full h-full border border-zinc-800'
-                            }`}
-                            sandbox="allow-same-origin allow-scripts"
-                            title="Website Preview"
-                          />
+                              }`}
+                              sandbox="allow-same-origin allow-scripts"
+                              title="Website Preview"
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ) : (
+                      ) : (
                       <div className="h-full relative">
                         <div className="bg-zinc-900 text-gray-300 h-full overflow-auto border border-zinc-800 scrollbar-thin scrollbar-thumb-zinc-700 scrollbar-track-transparent">
                           <pre className="p-4">
                             <code>{generatedCode}</code>
                           </pre>
                         </div>
-                        <button
-                          onClick={downloadCode}
+                          <button
+                            onClick={downloadCode}
                           className="absolute top-3 right-3 px-2 py-1 bg-blue-600 hover:bg-blue-700 text-white transition-colors duration-200 text-xs rounded-md"
-                        >
-                          Download
-                        </button>
-                      </div>
-                    )}
+                          >
+                            Download
+                          </button>
+                        </div>
+                      )}
                   </div>
 
                   {/* Edit mode controls */}
                   {activeTab === 'preview' && (
                     <div className="p-3 border-t border-zinc-800 flex justify-end space-x-3">
-                      <button
-                        onClick={toggleEditMode}
+                          <button
+                            onClick={toggleEditMode}
                         className={`px-3 py-1.5 text-sm font-medium transition-colors duration-300 rounded-md flex items-center ${
-                          editMode 
-                            ? 'bg-green-600 hover:bg-green-700 text-white'
-                            : 'bg-blue-600 hover:bg-blue-700 text-white'
-                        }`}
-                      >
+                              editMode 
+                                ? 'bg-green-600 hover:bg-green-700 text-white'
+                                : 'bg-blue-600 hover:bg-blue-700 text-white'
+                            }`}
+                          >
                         {editMode ? 'Save & Exit' : 'Edit Content'}
-                      </button>
-                      {unsavedChanges && (
-                        <button
-                          onClick={applyAllEdits}
+                          </button>
+                          {unsavedChanges && (
+                            <button
+                              onClick={applyAllEdits}
                           className="px-3 py-1.5 text-sm font-medium bg-yellow-600 hover:bg-yellow-700 text-white transition-colors duration-300 rounded-md flex items-center"
-                        >
-                          Apply Changes
-                        </button>
+                            >
+                              Apply Changes
+                            </button>
+                          )}
+                        </div>
                       )}
-                    </div>
-                  )}
                 </div>
-              )}
+                  )}
             </div>
           </div>
         </main>

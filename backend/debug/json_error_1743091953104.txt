@@ -1,0 +1,166 @@
+```json
+{
+  "selected_template": "minimal_clean",
+  "meta": {
+    "title": "The Daily Grind Coffee Shop",
+    "description": "Your local coffee shop for the perfect daily grind."
+  },
+  "content_structure": {
+    "header": {
+      "component": "header_nav",
+      "content": {
+        "company_name": "The Daily Grind",
+        "logo": "",
+        "navigation_links": [
+          { "text": "Menu", "url": "#menu" },
+          { "text": "About", "url": "#about" },
+          { "text": "Contact", "url": "#contact" }
+        ],
+        "cta_button": {
+          "text": "Order Online",
+          "url": "#order"
+        }
+      }
+    },
+    "sections": [
+      {
+        "id": "hero",
+        "suggested_component": "hero_centered",
+        "generated_content": {
+          "heading": "Start Your Day Right",
+          "subheading": "The Daily Grind offers the finest coffee and pastries in town. Freshly brewed, locally sourced.",
+          "primary_button": {
+            "text": "View Menu",
+            "url": "#menu"
+          },
+          "secondary_button": {
+            "text": "Find Us",
+            "url": "#contact"
+          }
+        }
+      },
+      {
+        "id": "features",
+        "suggested_component": "features_cards",
+        "generated_content": {
+          "title": "Why Choose Us?",
+          "cards": [
+            {
+              "title": "Quality Coffee",
+              "description": "We source only the highest quality beans from around the world.",
+              "icon": "coffee"
+            },
+            {
+              "title": "Fresh Pastries",
+              "description": "Baked fresh daily with locally sourced ingredients.",
+              "icon": "pastry"
+            },
+            {
+              "title": "Cozy Atmosphere",
+              "description": "A welcoming space to relax and enjoy your coffee.",
+              "icon": "cafe"
+            }
+          ]
+        }
+      },
+      {
+        "id": "menu",
+        "suggested_component": "pricing_table",
+        "generated_content": {
+          "title": "Our Menu",
+          "description": "A selection of our most popular items.",
+          "plans": [
+            {
+              "name": "Espresso",
+              "price": "3.00",
+              "features": ["Single Shot", "Double Shot"],
+              "cta_button": {
+                "text": "Order Now",
+                "url": "#order"
+              }
+            },
+            {
+              "name": "Latte",
+              "price": "4.00",
+              "features": ["Espresso", "Steamed Milk", "Foam"],
+              "cta_button": {
+                "text": "Order Now",
+                "url": "#order"
+              }
+            },
+            {
+              "name": "Cappuccino",
+              "price": "4.50",
+              "features": ["Espresso", "Steamed Milk", "Extra Foam"],
+              "cta_button": {
+                "text": "Order Now",
+                "url": "#order"
+              }
+            }
+          ]
+        }
+      },
+      {
+        "id": "about",
+        "suggested_component": "hero_split",
+        "generated_content": {
+          "heading": "About Us",
+          "subheading": "The Daily Grind is a family-owned coffee shop dedicated to providing the best coffee experience in town. We are passionate about quality and community.",
+          "primary_button": {
+            "text": "Learn More",
+            "url": "#"
+          },
+          "secondary_button": {
+            "text": "Our Story",
+            "url": "#"
+          }
+        }
+      },
+      {
+        "id": "contact",
+        "suggested_component": "contact_form",
+        "generated_content": {
+          "title": "Contact Us",
+          "description": "Get in touch with us for any inquiries.",
+          "form_fields": [
+            { "label": "Name", "type": "text", "required": true },
+            { "label": "Email", "type": "email", "required": true },
+            { "label": "Message", "type": "textarea", "required": true }
+          ],
+          "submit_button_text": "Send Message"
+        }
+      }
+    ],
+    "footer": {
+      "component": "footer_standard",
+      "content": {
+        "company_name": "The Daily Grind",
+        "company_description": "Your local coffee shop for the perfect daily grind.",
+        "social_links": [
+          { "platform": "twitter", "url": "https://twitter.com/" },
+          { "platform": "instagram", "url": "https://instagram.com/" }
+        ],
+        "current_year": 2025
+      }
+    }
+  },
+  "theme_configuration": {
+    "colors": {
+      "primary": "#6f4e37",
+      "secondary": "#a0785a",
+      "accent": "#c69c6d",
+      "background": "#f8f8f8",
+      "text": "#333333"
+    },
+    "fonts": {
+      "primary": "Roboto",
+      "heading": "Montserrat"
+    },
+    "design_style": "minimalist",
+    "spacing": "comfortable",
+    "effects": "minimal",
+    "shadows": "subtle",
+    "borders": "thin"
+  }
+}
+```
