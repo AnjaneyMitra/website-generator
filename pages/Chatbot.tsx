@@ -115,7 +115,7 @@ export default function Chatbot() {
       // Also save to Firestore for persistence
       saveChatMessageToFirestore(welcomeMessage);
     }
-  }, [chatOpen, welcomed]);
+  }, [chatOpen, welcomed, saveChatMessageToFirestore]);
 
   // Save chat history to localStorage when it changes
   useEffect(() => {

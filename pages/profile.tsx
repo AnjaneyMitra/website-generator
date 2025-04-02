@@ -45,7 +45,7 @@ export default function Profile() {
 
   useEffect(() => {
     fetchChatHistory();
-  }, [currentUser]);
+  }, [fetchChatHistory]);
 
   const clearAllChatHistory = async () => {
     if (!currentUser || !window.confirm('Are you sure you want to delete all chat history? This action cannot be undone.')) {
