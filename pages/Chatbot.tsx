@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { MessageCircle, X, Trash2 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { addDoc, collection } from 'firebase/firestore';
@@ -51,6 +51,30 @@ export default function Chatbot() {
   // New state for tracking generated pages
   const [generatedPages, setGeneratedPages] = useState<GeneratedPage[]>([]);
   const [currentPageId, setCurrentPageId] = useState<string | null>(null);
+
+  // Define saveChatMessageToFirestore with useCallback before it's used in useEffect
+  const saveChatMessageToFirestore = useCallback(async (message: ChatMessage) => {
+    if (currentUser) {
+      try {
+        await addDoc(collection(db, 'chats'), {
+          uid: currentUser.uid,
+          content: message.content,
+          role: message.role,
+          timestamp: message.timestamp,
+          pageId: currentPageId // Store reference to current page if any
+        });
+        console.log('Message saved to Firestore successfully');
+      } catch (error) {
+        console.error('Error saving message to Firestore:', error);
+        // Show the exact error for debugging
+        if (error instanceof Error) {
+          console.error('Error details:', error.message);
+        }
+      }
+    } else {
+      console.warn('Cannot save message - user not authenticated');
+    }
+  }, [currentUser, currentPageId]);
 
   // Load chat history from localStorage on first render
   useEffect(() => {
@@ -155,29 +179,6 @@ export default function Chatbot() {
     }
   }, [chatHistory]);
 
-  const saveChatMessageToFirestore = async (message: ChatMessage) => {
-    if (currentUser) {
-      try {
-        await addDoc(collection(db, 'chats'), {
-          uid: currentUser.uid,
-          content: message.content,
-          role: message.role,
-          timestamp: message.timestamp,
-          pageId: currentPageId // Store reference to current page if any
-        });
-        console.log('Message saved to Firestore successfully');
-      } catch (error) {
-        console.error('Error saving message to Firestore:', error);
-        // Show the exact error for debugging
-        if (error instanceof Error) {
-          console.error('Error details:', error.message);
-        }
-      }
-    } else {
-      console.warn('Cannot save message - user not authenticated');
-    }
-  };
-  
   const saveGeneratedPageToFirestore = async (page: GeneratedPage) => {
     if (currentUser) {
       try {
