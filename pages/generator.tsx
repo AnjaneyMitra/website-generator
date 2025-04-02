@@ -59,6 +59,16 @@ interface ChatMessage {
   text?: string;
 }
 
+// Add this function near the top of your component to determine the API base URL
+const getApiBaseUrl = () => {
+  // In production (Vercel), use relative URLs which will use the same domain
+  if (process.env.NODE_ENV === 'production') {
+    return '';
+  }
+  // In development, use localhost with the backend port
+  return 'http://localhost:3001';
+};
+
 export default function Home() {
   const [prompt, setPrompt] = useState('');
   const [generatedCode, setGeneratedCode] = useState('');
@@ -88,6 +98,9 @@ export default function Home() {
   const { currentUser, login, signInWithGoogle, logout, loading: authLoading } = useAuth();
   const router = useRouter();
   const eventSource = useRef<EventSource | null>(null);
+  
+  // Add this line near your other state declarations
+  const apiBaseUrl = getApiBaseUrl();
   
   // Auto-scroll chat when messages change
   useEffect(() => {
@@ -167,8 +180,8 @@ export default function Home() {
         eventSource.current.close();
       }
       
-      // Create a new EventSource connection for SSE
-      const sseUrl = 'http://localhost:3001/generate-sse';
+      // Create a new EventSource connection with dynamic base URL
+      const sseUrl = `${apiBaseUrl}/generate-sse`;
       console.log('Connecting to SSE endpoint:', sseUrl);
       eventSource.current = new EventSource(sseUrl);
       
@@ -270,7 +283,7 @@ export default function Home() {
       };
       
       // Send the prompt to the server
-      const response = await fetch('http://localhost:3001/start-generation', {
+      const response = await fetch(`${apiBaseUrl}/start-generation`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -323,9 +336,9 @@ export default function Home() {
     setLoading(true);
     
     try {
-      // Call the chatbot API
+      // Call the chatbot API with dynamic base URL
       console.log('Sending chat message to server');
-      const response = await fetch('http://localhost:3001/chat', {
+      const response = await fetch(`${apiBaseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

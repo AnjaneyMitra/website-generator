@@ -39,6 +39,16 @@ interface LocalStorageGeneratedPage {
   timestamp: string;
 }
 
+// Add this function near the top of your component to determine the API base URL
+const getApiBaseUrl = () => {
+  // In production (Vercel), use relative URLs which will use the same domain
+  if (process.env.NODE_ENV === 'production') {
+    return '';
+  }
+  // In development, use localhost with the backend port
+  return 'http://localhost:3001';
+};
+
 export default function Chatbot() {
   const [chatOpen, setChatOpen] = useState(false);
   const [chatMessage, setChatMessage] = useState('');
@@ -51,6 +61,9 @@ export default function Chatbot() {
   // New state for tracking generated pages
   const [generatedPages, setGeneratedPages] = useState<GeneratedPage[]>([]);
   const [currentPageId, setCurrentPageId] = useState<string | null>(null);
+
+  // Add this line near your other state declarations
+  const apiBaseUrl = getApiBaseUrl();
 
   // Define saveChatMessageToFirestore with useCallback before it's used in useEffect
   const saveChatMessageToFirestore = useCallback(async (message: ChatMessage) => {
@@ -231,7 +244,7 @@ export default function Chatbot() {
         ? generatedPages.find(p => p.id === currentPageId) 
         : null;
         
-      const response = await fetch('http://localhost:3001/chat', {
+      const response = await fetch(`${apiBaseUrl}/chat`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

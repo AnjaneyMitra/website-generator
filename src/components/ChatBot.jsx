@@ -14,6 +14,11 @@ const ChatBot = () => {
   const textareaRef = useRef(null);
   const messageContainerRef = useRef(null);
 
+  // Add this constant to determine the API base URL
+  const apiBaseUrl = typeof window !== 'undefined' && process.env.NODE_ENV === 'production' 
+    ? '' 
+    : 'http://localhost:3001';
+
   // Improved scroll handling
   const scrollToBottom = () => {
     if (messageContainerRef.current) {
@@ -70,7 +75,7 @@ const ChatBot = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/chat', {
+      const response = await fetch(`${apiBaseUrl}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ message: input.trim() }),
