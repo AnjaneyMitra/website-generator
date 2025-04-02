@@ -75,10 +75,11 @@ const ChatBot = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${apiBaseUrl}/chat`, {
-        method: 'POST',
+      // Use GET with encoded parameters instead of POST
+      const encodedMessage = encodeURIComponent(input.trim());
+      const response = await fetch(`${apiBaseUrl}/chat?message=${encodedMessage}`, {
+        method: 'GET',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: input.trim() }),
       });
       
       if (!response.ok) throw new Error('Network response was not ok');

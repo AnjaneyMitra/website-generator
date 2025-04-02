@@ -243,22 +243,21 @@ export default function Chatbot() {
       const currentPage = currentPageId 
         ? generatedPages.find(p => p.id === currentPageId) 
         : null;
-        
-      const response = await fetch(`${apiBaseUrl}/chat`, {
-        method: 'POST',
+      
+      // Use GET with encoded parameters instead of POST
+      const encodedMessage = encodeURIComponent(userMessage.content);
+      let url = `${apiBaseUrl}/chat?message=${encodedMessage}`;
+      
+      // Optionally add currentPageId as a query param if it exists
+      if (currentPageId) {
+        url += `&currentPageId=${encodeURIComponent(currentPageId)}`;
+      }
+      
+      const response = await fetch(url, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          message: userMessage.content,
-          history: chatHistory.map(msg => ({
-            role: msg.role,
-            content: msg.content
-          })),
-          currentPageId,
-          currentPageCode: currentPage?.code || null,
-          currentPageName: currentPage?.name || null,
-        }),
+        }
       });
 
       if (!response.ok) {

@@ -338,12 +338,13 @@ export default function Home() {
     try {
       // Call the chatbot API with dynamic base URL
       console.log('Sending chat message to server');
-      const response = await fetch(`${apiBaseUrl}/chat`, {
-        method: 'POST',
+      // Use GET with query parameters instead of POST
+      const encodedMessage = encodeURIComponent(prompt);
+      const response = await fetch(`${apiBaseUrl}/chat?message=${encodedMessage}`, {
+        method: 'GET',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ message: prompt }),
       });
       
       if (!response.ok) {
