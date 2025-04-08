@@ -862,7 +862,6 @@ app.get('/test', (req, res) => {
   });
 });
 
-// Existing POST endpoint for chat
 app.post('/chat', async (req, res) => {
   try {
     const { message, conversationContext = [] } = req.body;
@@ -872,127 +871,6 @@ app.post('/chat', async (req, res) => {
     }
 
     console.log(`Received chat message, context length: ${conversationContext.length}`);
-    
-    const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
-    
-    // Prepare conversation history for context if provided
-    if (conversationContext && conversationContext.length > 0) {
-      try {
-        // Convert conversation history to a format Gemini can use
-        const formattedContext = conversationContext.map(msg => ({
-          role: msg.role === 'user' ? 'user' : 'model',
-          parts: [{ text: msg.content }]
-        }));
-        
-        // Create a chat session with history
-        const chat = model.startChat({
-          history: formattedContext.slice(0, -1),  // All messages except the last one
-          generationConfig: {
-            maxOutputTokens: 1000,
-          },
-          systemInstruction: `You are Brix.AI, a friendly website generator assistant.
-
-Your first interaction with every user should ask if they want:
-1. Guidance for determining their website requirements through a series of questions, or
-2. To directly provide their own website prompt
-
-If they want guidance, walk them through these questions one by one:
-- What type of website do you need? (business, portfolio, e-commerce, blog, etc.)
-- What industry or niche is your website for?
-- What colors or visual style do you prefer?
-- What specific features do you need? (contact form, gallery, shop, etc.)
-- Who is your target audience?
-
-If they want to provide their own prompt:
-- Ask them to describe the website they want in detail
-- Take their description exactly as provided and format it into a prompt for the generator
-- Offer the formatted prompt for them to use with the website generator
-
-Always be helpful, friendly, and respect the user's choice. Remember previous parts of the conversation to provide personalized assistance.`
-        });
-        
-        // Send the last user message to continue the conversation
-        const lastMessage = conversationContext[conversationContext.length - 1];
-        const result = await withRetry(() => 
-          chat.sendMessage(lastMessage.content)
-        );
-        const response = await result.response;
-        
-        console.log('Successfully generated response with context');
-        
-        res.json({ 
-          response: response.text(),
-          timestamp: new Date().toISOString()
-        });
-      } catch (contextError) {
-        console.error('Error using chat history:', contextError);
-        
-        // Fall back to simple prompt if there's an issue with the chat history
-        const prompt = `You are Brix.AI, a friendly website generator assistant. 
-The user has been talking with you about website requirements.
-
-Previous messages (for context only):
-${conversationContext.map(msg => `${msg.role === 'user' ? 'User' : 'Assistant'}: ${msg.content}`).join('\n')}
-
-The user's latest message is: "${message}"
-
-Provide a clear, and helpful response, keeping it focused and direct. Remember that we're discussing website generation.`;
-
-        const result = await withRetry(() => model.generateContent(prompt));
-        const response = await result.response;
-        
-        console.log('Used fallback approach due to context error');
-        
-        res.json({ 
-          response: response.text(),
-          timestamp: new Date().toISOString()
-        });
-      }
-    } else {
-      // First message without conversation history - start with options
-      const prompt = `You are Brix.AI, a friendly website generator assistant.
-
-As this is our first interaction, welcome the user and ask if they would prefer:
-1. Step-by-step guidance on determining their website requirements through a series of questions, or
-2. To directly provide their own website description for immediate prompt generation
-
-The message from the user is: "${message}"
-
-If they've already indicated which option they prefer in their message, respond accordingly.
-If they just want a prompt, take their description and format it as a clear prompt for the website generator.
-
-Keep your response friendly, clear, and focused on helping the user generate the best website possible.`;
-
-      const result = await withRetry(() => model.generateContent(prompt));
-      const response = await result.response;
-      
-      res.json({ 
-        response: response.text(),
-        timestamp: new Date().toISOString()
-      });
-    }
-  } catch (error) {
-    console.error('Error:', error);
-    res.status(500).json({ 
-      error: 'Failed to process message', 
-      details: error.message 
-    });
-  }
-});
-
-// Add new GET endpoint for chat that works with query parameters
-app.get('/chat', async (req, res) => {
-  try {
-    const { message } = req.query;
-    const conversationContext = req.query.conversationContext 
-      ? JSON.parse(req.query.conversationContext) 
-      : [];
-    
-    if (!message) {
-      return res.status(400).json({ error: 'Message is required' });
-    }
-
-    console.log(`Received chat message via GET, context length: ${conversationContext.length}`);
     
     const model = genAI.getGenerativeModel({ model: "gemini-2.0-flash" });
     
